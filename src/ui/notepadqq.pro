@@ -6,6 +6,14 @@
 
 QT       += core gui widgets webkitwidgets
 
+greaterThan(QT_MAJOR_VERSION, 4) {
+    greaterThan(QT_MINOR_VERSION, 3) {
+        # Qt >= 5.4
+        QT += webenginewidgets
+    }
+}
+
+
 CONFIG += c++11
 
 TARGET = notepadqq-bin
