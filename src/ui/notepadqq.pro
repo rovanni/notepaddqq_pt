@@ -9,7 +9,8 @@ QT       += core gui widgets webkitwidgets
 greaterThan(QT_MAJOR_VERSION, 4) {
     greaterThan(QT_MINOR_VERSION, 3) {
         # Qt >= 5.4
-        QT += webenginewidgets
+        QT += webenginewidgets webchannel websockets
+        DEFINES += USE_QTWEBENGINE
     }
 }
 
@@ -69,7 +70,9 @@ SOURCES += main.cpp\
     EditorNS/bannerfilechanged.cpp \
     EditorNS/bannerbasicmessage.cpp \
     EditorNS/bannerfileremoved.cpp \
-    EditorNS/customqwebview.cpp
+    EditorNS/customqwebview.cpp \
+    EditorNS/websockettransport.cpp \
+    EditorNS/websocketclientwrapper.cpp
 
 HEADERS  += include/mainwindow.h \
     include/topeditorcontainer.h \
@@ -84,7 +87,9 @@ HEADERS  += include/mainwindow.h \
     include/EditorNS/bannerfilechanged.h \
     include/EditorNS/bannerbasicmessage.h \
     include/EditorNS/bannerfileremoved.h \
-    include/EditorNS/customqwebview.h
+    include/EditorNS/customqwebview.h \
+    include/EditorNS/websockettransport.h \
+    include/EditorNS/websocketclientwrapper.h
 
 FORMS    += mainwindow.ui \
     frmabout.ui \

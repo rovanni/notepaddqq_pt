@@ -7,6 +7,11 @@
 #include <QEventLoop>
 #include <QSettings>
 
+#ifdef USE_QTWEBENGINE
+    #include <QWebEngineSettings>
+    #include <QtWebChannel/QWebChannel>
+#endif
+
 namespace EditorNS
 {
 
@@ -22,6 +27,7 @@ namespace EditorNS
                 &Editor::on_proxyMessageReceived);
 
         m_webView = new CustomQWebView(this);
+        // FIXME QUrl::fromLocalFile
         m_webView->setUrl(QUrl("file://" + Notepadqq::editorPath()));
 
         // To load the page in the background (http://stackoverflow.com/a/10520029):
@@ -29,6 +35,15 @@ namespace EditorNS
         //QString content = QString("<html><body onload='setTimeout(function() { window.location=\"%1\"; }, 1);'>Loading...</body></html>").arg("file://" + Notepadqq::editorPath());
         //m_webView->setContent(content.toUtf8());
 
+#ifdef USE_QTWEBENGINE
+        //m_webView->page()->setLinkDelegationPolicy(QWebPage::DelegateAllLinks); // FIXME
+
+        QWebEngineSettings *pageSettings = m_webView->page()->settings();
+        #ifdef QT_DEBUG
+        //pageSettings->setAttribute(QWebSettings::DeveloperExtrasEnabled, true); // FIXME
+        #endif
+        pageSettings->setAttribute(QWebEngineSettings::JavascriptCanAccessClipboard, true);
+#else
         m_webView->page()->setLinkDelegationPolicy(QWebPage::DelegateAllLinks);
 
         QWebSettings *pageSettings = m_webView->page()->settings();
@@ -36,6 +51,7 @@ namespace EditorNS
         pageSettings->setAttribute(QWebSettings::DeveloperExtrasEnabled, true);
         #endif
         pageSettings->setAttribute(QWebSettings::JavascriptCanAccessClipboard, true);
+#endif
 
         m_layout = new QVBoxLayout(this);
         m_layout->setContentsMargins(0, 0, 0, 0);
@@ -43,10 +59,17 @@ namespace EditorNS
         m_layout->addWidget(m_webView, 1);
         setLayout(m_layout);
 
+#ifdef USE_QTWEBENGINE
+        connect(m_webView->page(),
+                &QWebEnginePage::loadFinished,
+                this,
+                &Editor::on_javaScriptWindowObjectCleared); // FIXME Usare un nome più utile
+#else
         connect(m_webView->page()->mainFrame(),
                 &QWebFrame::javaScriptWindowObjectCleared,
                 this,
                 &Editor::on_javaScriptWindowObjectCleared);
+#endif
 
         connect(m_webView, &CustomQWebView::mouseWheel, this, &Editor::mouseWheel);
 
@@ -63,11 +86,11 @@ namespace EditorNS
     Editor *Editor::getNewEditor()
     {
         if (m_editorBuffer.length() == 0) {
-            m_editorBuffer.enqueue(new Editor());
+            //m_editorBuffer.enqueue(new Editor());
             return new Editor();
 
         } else if (m_editorBuffer.length() == 1) {
-            m_editorBuffer.enqueue(new Editor());
+            //m_editorBuffer.enqueue(new Editor());
             return m_editorBuffer.dequeue();
 
         } else
@@ -76,8 +99,8 @@ namespace EditorNS
 
     void Editor::addEditorToBuffer(const int howMany)
     {
-        for (int i = 0; i < howMany; i++)
-            m_editorBuffer.enqueue(new Editor());
+        /*for (int i = 0; i < howMany; i++)
+            m_editorBuffer.enqueue(new Editor());*/
     }
 
     void Editor::waitAsyncLoad()
@@ -92,8 +115,7 @@ namespace EditorNS
 
     void Editor::on_javaScriptWindowObjectCleared()
     {
-        m_webView->page()->mainFrame()->
-                addToJavaScriptWindowObject("cpp_ui_driver", m_jsToCppProxy);
+        m_webView->connectJavaScriptObject("cpp_ui_driver", m_jsToCppProxy);
     }
 
     void Editor::on_proxyMessageReceived(QString msg, QVariant data)
@@ -260,7 +282,7 @@ namespace EditorNS
 
         m_jsToCppProxy->setMsgData(data);
 
-        return m_webView->page()->mainFrame()->evaluateJavaScript(funCall);
+        return m_webView->evaluateJavaScript(funCall);
     }
 
     QVariant Editor::sendMessageWithResult(const QString &msg)
@@ -323,6 +345,11 @@ namespace EditorNS
         for (int i = 0; i < list.length(); i++) {
             removeBanner(list[i]);
         }
+    }
+
+    void JsToCppProxy::receiveMessage(QString msg, QVariant data)
+    {
+        emit messageReceived(msg, data);
     }
 
 }

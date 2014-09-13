@@ -42,6 +42,9 @@ namespace EditorNS
              */
         Q_INVOKABLE QVariant getMsgData() { return m_msgData; }
 
+    public slots:
+        Q_INVOKABLE void receiveMessage(QString msg, QVariant data);
+
     signals:
         /**
              * @brief A JavaScript message has been received.
