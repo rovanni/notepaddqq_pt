@@ -26,12 +26,13 @@ namespace EditorNS
         connect(this, &CustomQWebView::JavascriptEvaluated, &loop, &QEventLoop::quit);
 
         QVariant data;
-        page()->runJavaScript(expr, [&](const QVariant &result){
+        page()->runJavaScript(expr, [&](const QVariant &result) {
             data = result;
             emit JavascriptEvaluated();
         });
 
-        //loop.exec();
+        // FIXME!! It never exits from the event loop
+        loop.exec();
 
         return data;
 #else
