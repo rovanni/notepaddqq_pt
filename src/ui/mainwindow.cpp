@@ -21,8 +21,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow),
     m_topEditorContainer(new TopEditorContainer(this))
 {
-    // FIXME Set /usr/share/themes QIcon::setThemeSearchPaths();
-
     ui->setupUi(this);
 
     // Gets company name from QCoreApplication::setOrganizationName(). Same for app name.
@@ -80,11 +78,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     setupLanguagesMenu();
 
-
-
-
-
-
     // DEBUG: Add a second tabWidget
     //this->topEditorContainer->addTabWidget()->addEditorTab(false, "test");
 }
@@ -133,11 +126,11 @@ void MainWindow::loadIcons()
     ui->actionSave_Currently_Recorded_Macro->setIcon(IconProvider::fromTheme("notepadqq-save-macro"));
     ui->actionPreferences->setIcon(IconProvider::fromTheme("preferences-other"));
     ui->actionSearch->setIcon(IconProvider::fromTheme("edit-find"));
+    ui->actionReplace->setIcon(IconProvider::fromTheme("edit-find-replace"));
     ui->actionShow_All_Characters->setIcon(IconProvider::fromTheme("notepadqq-show-special-chars"));
     ui->actionWord_wrap->setIcon(IconProvider::fromTheme("notepadqq-word-wrap"));
-
-    //ui->actionFind_Next->setIcon(IconProvider::fromTheme("go-next",QIcon(ui->actionFind_Next->icon())));
-    //ui->actionFind_Previous->setIcon(IconProvider::fromTheme("go-previous",QIcon(ui->actionFind_Previous->icon())));
+    ui->actionFind_Next->setIcon(IconProvider::fromTheme("go-next"));
+    ui->actionFind_Previous->setIcon(IconProvider::fromTheme("go-previous"));
 }
 
 void MainWindow::createStatusBar()
@@ -307,7 +300,7 @@ void MainWindow::dropEvent(QDropEvent *e)
 
 void MainWindow::on_action_New_triggered()
 {
-    static int num = 1; // FIXME maybe find smarter way
+    static int num = 1; // FIXME maybe find a smarter way
     EditorTabWidget *tabW = m_topEditorContainer->currentTabWidget();
 
     // Make sure we have a tabWidget: if not, create it.
@@ -315,7 +308,7 @@ void MainWindow::on_action_New_triggered()
         tabW = m_topEditorContainer->addTabWidget();
     }
 
-    tabW->addEditorTab(true, tr("new %1").arg(num));
+    m_docEngine->addNewDocument(tr("new %1").arg(num), true, tabW);
     num++;
 }
 
@@ -692,6 +685,10 @@ void MainWindow::refreshEditorUiInfo(Editor *editor)
                        .arg(QApplication::applicationName()));
 
     }
+
+
+    // Enable / disable menus
+    ui->actionRename->setEnabled(!editor->fileName().isEmpty());
 }
 
 void MainWindow::on_action_Delete_triggered()
@@ -1012,6 +1009,10 @@ void MainWindow::on_documentSaved(EditorTabWidget *tabWidget, int tab)
     Editor *editor = tabWidget->editor(tab);
     editor->removeBanner("filechanged");
     editor->removeBanner("fileremoved");
+
+    if (editor == currentEditor()) {
+        ui->actionRename->setEnabled(true);
+    }
 }
 
 void MainWindow::on_documentReloaded(EditorTabWidget *tabWidget, int tab)
@@ -1026,4 +1027,34 @@ void MainWindow::on_actionReload_from_Disk_triggered()
     EditorTabWidget *tabWidget = m_topEditorContainer->currentTabWidget();
     m_docEngine->reloadDocument(tabWidget,
                                 tabWidget->currentIndex());
+}
+
+void MainWindow::on_actionFind_Next_triggered()
+{
+    if (m_frmSearchReplace)
+        m_frmSearchReplace->findFromUI(true);
+}
+
+void MainWindow::on_actionFind_Previous_triggered()
+{
+    if (m_frmSearchReplace)
+        m_frmSearchReplace->findFromUI(false);
+}
+
+void MainWindow::on_actionRename_triggered()
+{
+    EditorTabWidget *tabW = m_topEditorContainer->currentTabWidget();
+    QUrl oldFilename = tabW->currentEditor()->fileName();
+    int result = saveAs(tabW, tabW->currentIndex(), false);
+
+    if (result == saveFileResult_Saved && !oldFilename.isEmpty()) {
+        QString filename = oldFilename.toLocalFile();
+        if (QFile::exists(filename)) {
+            if(!QFile::remove(filename)) {
+                QMessageBox::warning(this, QApplication::applicationName(),
+                                     QString("Error: unable to remove file %1")
+                                     .arg(filename));
+            }
+        }
+    }
 }
