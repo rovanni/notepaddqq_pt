@@ -3,6 +3,7 @@
 #include <QtWebChannel/QWebChannel>
 #include <QEventLoop>
 #include <QtWebSockets/QWebSocketServer>
+#include <QWebFrame>
 
 namespace EditorNS
 {

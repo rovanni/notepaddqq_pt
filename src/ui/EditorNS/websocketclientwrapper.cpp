@@ -30,6 +30,7 @@
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
+#ifdef USE_QTWEBENGINE
 
 #include "include/EditorNS/websocketclientwrapper.h"
 #include <QtWebSockets/QWebSocketServer>
@@ -64,3 +65,5 @@ void WebSocketClientWrapper::handleNewConnection()
 {
     emit clientConnected(new WebSocketTransport(m_server->nextPendingConnection()));
 }
+
+#endif // USE_QTWEBENGINE

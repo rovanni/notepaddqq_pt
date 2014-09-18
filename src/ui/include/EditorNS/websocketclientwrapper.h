@@ -1,5 +1,6 @@
 #ifndef WEBSOCKETCLIENTWRAPPER_H
 #define WEBSOCKETCLIENTWRAPPER_H
+#ifdef USE_QTWEBENGINE
 
 #include <QtWebSockets/QWebSocketServer>
 #include "websockettransport.h"
@@ -23,4 +24,5 @@ private:
     QWebSocketServer *m_server;
 };
 
+#endif // USE_QTWEBENGINE
 #endif // WEBSOCKETCLIENTWRAPPER_H
