@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui widgets webkitwidgets
+QT       += core gui svg widgets webkitwidgets
 
 greaterThan(QT_MAJOR_VERSION, 4) {
     greaterThan(QT_MINOR_VERSION, 3) {
@@ -24,6 +24,8 @@ RCC_DIR = ../../out/build_data
 UI_DIR = ../../out/build_data
 MOC_DIR = ../../out/build_data
 OBJECTS_DIR = ../../out/build_data
+
+QMAKE_CXXFLAGS_WARN_ON += -Wold-style-cast
 
 # clear "rpath" so that we can override Qt lib path via LD_LIBRARY_PATH
 QMAKE_RPATH=

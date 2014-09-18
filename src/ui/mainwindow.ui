@@ -14,7 +14,7 @@
    <string>Notepadqq</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="resources.qrc">
+   <iconset>
     <normaloff>:/icons/default/scalable/notepadqq.svg</normaloff>:/icons/default/scalable/notepadqq.svg</iconset>
   </property>
   <property name="documentMode">
@@ -49,6 +49,11 @@
     <property name="title">
      <string>&amp;File</string>
     </property>
+    <widget class="QMenu" name="menuRecent_Files">
+     <property name="title">
+      <string>Recent Files</string>
+     </property>
+    </widget>
     <addaction name="action_New"/>
     <addaction name="action_Open"/>
     <addaction name="actionReload_from_Disk"/>
@@ -60,7 +65,6 @@
     <addaction name="actionClose"/>
     <addaction name="actionC_lose_All"/>
     <addaction name="actionClose_All_BUT_Current_Document"/>
-    <addaction name="actionDelete_from_Disk"/>
     <addaction name="separator"/>
     <addaction name="actionLoad_Session"/>
     <addaction name="actionSave_Session"/>
@@ -68,9 +72,7 @@
     <addaction name="actionPrint"/>
     <addaction name="actionPrint_Now"/>
     <addaction name="separator"/>
-    <addaction name="separator"/>
-    <addaction name="actionOpen_All_Recent_Files"/>
-    <addaction name="actionEmpty_Recent_Files_List"/>
+    <addaction name="menuRecent_Files"/>
     <addaction name="separator"/>
     <addaction name="actionE_xit"/>
    </widget>
@@ -358,11 +360,6 @@
   <action name="actionClose_All_BUT_Current_Document">
    <property name="text">
     <string>Close All BUT Current Document</string>
-   </property>
-  </action>
-  <action name="actionDelete_from_Disk">
-   <property name="text">
-    <string>Delete from Disk</string>
    </property>
   </action>
   <action name="actionLoad_Session">
@@ -824,8 +821,6 @@
   </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <resources>
-  <include location="resources.qrc"/>
- </resources>
+ <resources/>
  <connections/>
 </ui>

@@ -79,6 +79,10 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
     if(!fileNames.empty()) {
         m_settings->setValue("lastSelectedDir", QFileInfo(fileNames[0].toLocalFile()).absolutePath());
 
+        // Used to know if the document that we're loading is
+        // the first one in the list.
+        bool isFirstDocument = true;
+
         for (int i = 0; i < fileNames.count(); i++)
         {
             if (fileNames[i].isLocalFile()) {
@@ -88,30 +92,41 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
                 QPair<int, int> openPos = findOpenEditorByUrl(fileNames[i]);
                 if(!reload) {
                     if (openPos.first > -1 ) {
-                        if(fileNames.count() == 1) {
-                            EditorTabWidget *tabW =
-                                    (EditorTabWidget *)m_topEditorContainer->widget(openPos.first);
+                        EditorTabWidget *tabW = static_cast<EditorTabWidget *>
+                                (m_topEditorContainer->widget(openPos.first));
 
+                        if (isFirstDocument) {
+                            isFirstDocument = false;
                             tabW->setCurrentIndex(openPos.second);
                         }
+
+                        emit documentLoaded(tabW, openPos.second, true);
                         continue;
                     }
                 }
 
-                int tabIndex = 0;
+                int tabIndex;
                 if (reload) {
-                    tabWidget = (EditorTabWidget *)m_topEditorContainer->widget(openPos.first);
+                    tabWidget = m_topEditorContainer->tabWidget(openPos.first);
                     tabIndex = openPos.second;
                 } else {
-                    tabIndex = tabWidget->addEditorTab(true, fi.fileName());
+                    tabIndex = tabWidget->addEditorTab(false, fi.fileName());
                 }
 
-                Editor* editor = (Editor *)tabWidget->widget(tabIndex);
+                Editor* editor = tabWidget->editor(tabIndex);
+
+                // In case of a reload, save cursor and scroll position
+                QPair<int, int> scrollPosition;
+                QPair<int, int> cursorPosition;
+                if (reload) {
+                    scrollPosition = editor->scrollPosition();
+                    cursorPosition = editor->cursorPosition();
+                }
 
                 QFile file(localFileName);
                 if (file.exists()) {
                     if (!read(&file, editor, "UTF-8")) {
-                        // Manage error
+                        // Handle error
                         QMessageBox msgBox;
                         msgBox.setWindowTitle(QCoreApplication::applicationName());
                         msgBox.setText(tr("Error trying to open \"%1\"").arg(fi.fileName()));
@@ -134,6 +149,12 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
                     }
                 }
 
+                // In case of reload, restore cursor and scroll position
+                if (reload) {
+                    editor->setScrollPosition(scrollPosition);
+                    editor->setCursorPosition(cursorPosition);
+                }
+
                 if (!file.exists()) {
                     // If it's a file that doesn't exists,
                     // set it as if it has changed. This way, if someone
@@ -144,7 +165,7 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
 
                 // If there was only a new empty tab opened, remove it
                 if (tabWidget->count() == 2) {
-                    Editor * victim = (Editor *)tabWidget->widget(0);
+                    Editor *victim = tabWidget->editor(0);
                     if (victim->fileName().isEmpty() && victim->isClean()) {
                         tabWidget->removeTab(0);
                         tabIndex--;
@@ -164,11 +185,17 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
 
                 monitorDocument(editor);
 
-                if (reload) {
-                    emit documentReloaded(tabWidget, tabIndex);
+                if (isFirstDocument) {
+                    isFirstDocument = false;
+                    tabWidget->setCurrentIndex(tabIndex);
+                    tabWidget->editor(tabIndex)->setFocus();
                 }
 
-                editor->setFocus();
+                if (reload) {
+                    emit documentReloaded(tabWidget, tabIndex);
+                } else {
+                    emit documentLoaded(tabWidget, tabIndex, false);
+                }
 
             } else if (fileNames[i].isEmpty()) {
                 // Do nothing
@@ -189,7 +216,7 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
 QPair<int, int> DocEngine::findOpenEditorByUrl(QUrl filename)
 {
     for (int i = 0; i < m_topEditorContainer->count(); i++) {
-        EditorTabWidget *tabW = (EditorTabWidget *)m_topEditorContainer->widget(i);
+        EditorTabWidget *tabW = m_topEditorContainer->tabWidget(i);
         int id = tabW->findOpenEditorByUrl(filename);
         if (id > -1)
             return QPair<int, int>(i, id);
