@@ -8,6 +8,10 @@
 #include "include/iconprovider.h"
 #include "include/EditorNS/bannerfilechanged.h"
 #include "include/EditorNS/bannerfileremoved.h"
+#include "include/EditorNS/bannerindentationdetected.h"
+#include "include/clickablelabel.h"
+#include "include/frmencodingchooser.h"
+#include "include/frmindentationmode.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QClipboard>
@@ -16,13 +20,21 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QToolButton>
+#include <QtPrintSupport/QPrintDialog>
+#include <QtPrintSupport/QPrintPreviewDialog>
+#include <QDesktopServices>
 
-MainWindow::MainWindow(QWidget *parent) :
+QList<MainWindow*> MainWindow::m_instances = QList<MainWindow*>();
+
+MainWindow::MainWindow(const QString &workingDirectory, const QStringList &arguments, QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_topEditorContainer(new TopEditorContainer(this))
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_DeleteOnClose);
+
+    MainWindow::m_instances.append(this);
 
     // Gets company name from QCoreApplication::setOrganizationName(). Same for app name.
     m_settings = new QSettings(this);
@@ -50,14 +62,25 @@ MainWindow::MainWindow(QWidget *parent) :
     m_tabContextMenuActions.append(separator);
     m_tabContextMenuActions.append(ui->actionMove_to_Other_View);
     m_tabContextMenuActions.append(ui->actionClone_to_Other_View);
-    m_tabContextMenuActions.append(ui->actionMove_to_New_Instance);
-    m_tabContextMenuActions.append(ui->actionOpen_in_New_Instance);
+    m_tabContextMenuActions.append(ui->actionMove_to_New_Window);
+    m_tabContextMenuActions.append(ui->actionOpen_in_New_Window);
     m_tabContextMenu->addActions(m_tabContextMenuActions);
 
     // Set popup for action_Open in toolbar
     QToolButton *btnActionOpen = static_cast<QToolButton *>(ui->mainToolBar->widgetForAction(ui->action_Open));
     btnActionOpen->setMenu(ui->menuRecent_Files);
     btnActionOpen->setPopupMode(QToolButton::MenuButtonPopup);
+
+    // Action group for EOL modes
+    QActionGroup *eolActionGroup = new QActionGroup(this);
+    eolActionGroup->addAction(ui->actionWindows_Format);
+    eolActionGroup->addAction(ui->actionUNIX_Format);
+    eolActionGroup->addAction(ui->actionMac_Format);
+
+    // Action group for indentation modes
+    QActionGroup *indentationActionGroup = new QActionGroup(this);
+    indentationActionGroup->addAction(ui->actionIndentation_Default_settings);
+    indentationActionGroup->addAction(ui->actionIndentation_Custom);
 
     connect(m_topEditorContainer, &TopEditorContainer::customTabContextMenuRequested,
             this, &MainWindow::on_customTabContextMenuRequested);
@@ -74,16 +97,38 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_topEditorContainer, &TopEditorContainer::editorMouseWheel,
             this, &MainWindow::on_editorMouseWheel);
 
+    connect(m_topEditorContainer, &TopEditorContainer::tabBarDoubleClicked,
+            this, &MainWindow::on_tabBarDoubleClicked);
+
     createStatusBar();
 
     updateRecentDocsInMenu();
 
     setAcceptDrops(true);
 
+    // Initialize UI from settings
+    ui->actionWord_wrap->setChecked(m_settings->value("wordWrap", false).toBool());
+    ui->actionShow_Tabs->setChecked(m_settings->value("tabsVisible", false).toBool());
+
     // Inserts at least an editor
-    openCommandLineProvidedUrls();
+    openCommandLineProvidedUrls(workingDirectory, arguments);
+    // From now on, there is at least an Editor and at least
+    // an EditorTabWidget within m_topEditorContainer.
+
+    // Set zoom from settings
+    qreal zoom = m_settings->value("zoom", 1).toReal();
+    for (int i = 0; i < m_topEditorContainer->count(); i++) {
+        m_topEditorContainer->tabWidget(i)->setZoomFactor(zoom);
+    }
 
     restoreWindowSettings();
+
+    // If there was another window already opened, move this window
+    // slightly to the bottom-right, so that they won't completely overlap.
+    if (!isMaximized() && m_instances.count() > 1) {
+        QPoint curPos = pos();
+        move(curPos.x() + 50, curPos.y() + 50);
+    }
 
     setupLanguagesMenu();
 
@@ -91,10 +136,35 @@ MainWindow::MainWindow(QWidget *parent) :
     //this->topEditorContainer->addTabWidget()->addEditorTab(false, "test");
 }
 
+MainWindow::MainWindow(const QStringList &arguments, QWidget *parent)
+    : MainWindow(QDir::currentPath(), arguments, parent)
+{ }
+
 MainWindow::~MainWindow()
 {
+    MainWindow::m_instances.removeAll(this);
+
     delete ui;
     delete m_docEngine;
+}
+
+QList<MainWindow*> MainWindow::instances()
+{
+    return MainWindow::m_instances;
+}
+
+MainWindow *MainWindow::lastActiveInstance()
+{
+    if (m_instances.length() > 0) {
+        return m_instances.last();
+    } else {
+        return nullptr;
+    }
+}
+
+TopEditorContainer *MainWindow::topEditorContainer()
+{
+    return m_topEditorContainer;
 }
 
 void MainWindow::restoreWindowSettings()
@@ -167,40 +237,71 @@ void MainWindow::createStatusBar()
 
 
     QLabel *label;
+    QMargins tmpMargins;
 
     label = new QLabel("File Format", this);
     label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-    label->setMinimumWidth(160);
+    label->setMinimumWidth(150);
+    tmpMargins = label->contentsMargins();
+    label->setContentsMargins(tmpMargins.left(), tmpMargins.top(), tmpMargins.right() + 10, tmpMargins.bottom());
     layout->addWidget(label);
     m_statusBar_fileFormat = label;
 
-    label = new QLabel("Length : 0     Lines : 1", this);
+    label = new QLabel("Ln 0, col 0", this);
     label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    label->setMinimumWidth(120);
+    tmpMargins = label->contentsMargins();
+    label->setContentsMargins(tmpMargins.left(), tmpMargins.top(), tmpMargins.right() + 10, tmpMargins.bottom());
     layout->addWidget(label);
-    m_statusBar_lengthInfo = label;
+    m_statusBar_curPos = label;
 
-    label = new QLabel("Ln : 0     Col : 1     Sel : 0 | 0", this);
-    label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    label = new QLabel("Sel 0, 0", this);
+    label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    label->setMinimumWidth(120);
+    tmpMargins = label->contentsMargins();
+    label->setContentsMargins(tmpMargins.left(), tmpMargins.top(), tmpMargins.right() + 10, tmpMargins.bottom());
     layout->addWidget(label);
-    m_statusBar_selectionInfo = label;
+    m_statusBar_selection = label;
+
+    label = new QLabel("0 chars, 0 lines", this);
+    label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+    tmpMargins = label->contentsMargins();
+    label->setContentsMargins(tmpMargins.left(), tmpMargins.top(), tmpMargins.right() + 10, tmpMargins.bottom());
+    layout->addWidget(label);
+    m_statusBar_length_lines = label;
 
     label = new QLabel("EOL", this);
     label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-    label->setMinimumWidth(128);
+    label->setMinimumWidth(118);
+    tmpMargins = label->contentsMargins();
+    label->setContentsMargins(tmpMargins.left(), tmpMargins.top(), tmpMargins.right() + 10, tmpMargins.bottom());
     layout->addWidget(label);
     m_statusBar_EOLstyle = label;
 
     label = new QLabel("Encoding", this);
     label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-    label->setMinimumWidth(128);
+    label->setMinimumWidth(118);
+    tmpMargins = label->contentsMargins();
+    label->setContentsMargins(tmpMargins.left(), tmpMargins.top(), tmpMargins.right() + 10, tmpMargins.bottom());
     layout->addWidget(label);
     m_statusBar_textFormat = label;
 
-    label = new QLabel("INS", this);
+    label = new QLabel(tr("INS"), this);
     label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     label->setMinimumWidth(40);
     layout->addWidget(label);
     m_statusBar_overtypeNotify = label;
+
+    if (Notepadqq::oldQt()) {
+        ClickableLabel *cklabel = new ClickableLabel(QString("Qt ") + qVersion(), this);
+        cklabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+        cklabel->setStyleSheet("QLabel { background-color: #FF4136; color: white; }");
+        cklabel->setCursor(Qt::PointingHandCursor);
+        connect(cklabel, &ClickableLabel::clicked, this, [&]() {
+            Notepadqq::showQtVersionWarning(false, this);
+        });
+        layout->addWidget(cklabel);
+    }
 
 
     status->addWidget(scrollArea, 1);
@@ -245,9 +346,14 @@ void MainWindow::setupLanguagesMenu()
     }
 }
 
-void MainWindow::openCommandLineProvidedUrls()
+void MainWindow::openCommandLineProvidedUrls(const QString &workingDirectory, const QStringList &arguments)
 {
-    QCommandLineParser *parser = Notepadqq::commandLineParameters();
+    if (arguments.count() == 0) {
+        ui->action_New->trigger();
+        return;
+    }
+
+    QCommandLineParser *parser = Notepadqq::getCommandLineArgumentsParser(arguments);
 
     QStringList rawUrls = parser->positionalArguments();
 
@@ -263,10 +369,17 @@ void MainWindow::openCommandLineProvidedUrls()
         for(int i = 0; i < rawUrls.count(); i++)
         {
             QUrl f = QUrl(rawUrls.at(i));
-            if (f.isRelative())
-                files.append(QUrl::fromLocalFile(rawUrls.at(i)));
-            else
+            if (f.isRelative()) { // No schema
+                QFileInfo fi(rawUrls.at(i));
+                if (fi.isRelative()) { // Relative local path
+                    QString absolute = QDir::cleanPath(workingDirectory + QDir::separator() + rawUrls.at(i));
+                    files.append(QUrl::fromLocalFile(absolute));
+                } else {
+                    files.append(QUrl::fromLocalFile(rawUrls.at(i)));
+                }
+            } else {
                 files.append(f);
+            }
         }
 
         EditorTabWidget *tabW = m_topEditorContainer->currentTabWidget();
@@ -278,9 +391,7 @@ void MainWindow::openCommandLineProvidedUrls()
         m_docEngine->loadDocuments(files, tabW);
     }
 
-    // Activate the window
-    activateWindow();
-    raise();
+    delete parser;
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *e)
@@ -307,9 +418,54 @@ void MainWindow::dropEvent(QDropEvent *e)
     }
 }
 
-void MainWindow::on_action_New_triggered()
+void MainWindow::keyPressEvent(QKeyEvent *ev)
+{
+    if (ev->key() == Qt::Key_Insert) {
+        toggleOverwrite();
+    } else {
+        QMainWindow::keyPressEvent(ev);
+    }
+}
+
+void MainWindow::changeEvent(QEvent *e)
+{
+    if (e->type() == QEvent::ActivationChange) {
+        if (isActiveWindow()) {
+            if (m_instances.length() > 0 && m_instances.last() != this) {
+                int pos = m_instances.indexOf(this);
+                if (pos > -1) {
+                    // Move this instance at the end of the list
+                    m_instances.move(pos, m_instances.length() - 1);
+                }
+            }
+        }
+    }
+}
+
+void MainWindow::toggleOverwrite()
+{
+    m_overwrite = !m_overwrite;
+
+    m_topEditorContainer->forEachEditor([&](const int /*tabWidgetId*/, const int /*editorId*/, EditorTabWidget */*tabWidget*/, Editor *editor) {
+        editor->setOverwrite(m_overwrite);
+        return true;
+    });
+
+    if (m_overwrite) {
+        m_statusBar_overtypeNotify->setText(tr("OVR"));
+    } else {
+        m_statusBar_overtypeNotify->setText(tr("INS"));
+    }
+}
+
+QString MainWindow::getNewDocumentName()
 {
     static int num = 1; // FIXME maybe find a smarter way
+    return tr("new %1").arg(num++);
+}
+
+void MainWindow::on_action_New_triggered()
+{
     EditorTabWidget *tabW = m_topEditorContainer->currentTabWidget();
 
     // Make sure we have a tabWidget: if not, create it.
@@ -317,8 +473,7 @@ void MainWindow::on_action_New_triggered()
         tabW = m_topEditorContainer->addTabWidget();
     }
 
-    m_docEngine->addNewDocument(tr("new %1").arg(num), true, tabW);
-    num++;
+    m_docEngine->addNewDocument(getNewDocumentName(), true, tabW);
 }
 
 void MainWindow::setCurrentEditorLanguage(QString language)
@@ -329,6 +484,30 @@ void MainWindow::setCurrentEditorLanguage(QString language)
 void MainWindow::on_customTabContextMenuRequested(QPoint point, EditorTabWidget * /*tabWidget*/, int /*tabIndex*/)
 {
     m_tabContextMenu->exec(point);
+}
+
+bool MainWindow::reloadWithWarning(EditorTabWidget *tabWidget, int tab, QTextCodec *codec, bool bom)
+{
+    if (!tabWidget->editor(tab)->isClean()) {
+        QMessageBox msgBox(this);
+        QString name = tabWidget->tabText(tab).toHtmlEscaped();
+
+        msgBox.setWindowTitle(QCoreApplication::applicationName());
+        msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+
+        msgBox.setText("<h3>" + tr("Your changes to «%1» will be discarded.").arg(name) + "</h3>");
+        msgBox.setButtonText(QMessageBox::Ok, tr("Reload"));
+
+        msgBox.setDefaultButton(QMessageBox::Cancel);
+        msgBox.setEscapeButton(QMessageBox::Cancel);
+
+        msgBox.exec();
+
+        if (msgBox.standardButton(msgBox.clickedButton()) == QMessageBox::Cancel)
+            return false;
+    }
+
+    return m_docEngine->reloadDocument(tabWidget, tab, codec, bom);
 }
 
 void MainWindow::on_actionMove_to_Other_View_triggered()
@@ -580,9 +759,8 @@ void MainWindow::on_actionSave_a_Copy_As_triggered()
 
 void MainWindow::on_action_Copy_triggered()
 {
-    QVariant text = currentEditor()->sendMessageWithResult("C_FUN_GET_SELECTIONS_TEXT");
-
-    QApplication::clipboard()->setText(text.toStringList().join("\n"));
+    QStringList sel = currentEditor()->selectedTexts();
+    QApplication::clipboard()->setText(sel.join("\n"));
 }
 
 void MainWindow::on_action_Paste_triggered()
@@ -615,9 +793,15 @@ void MainWindow::on_editorAdded(EditorTabWidget *tabWidget, int tab)
     connect(editor, &Editor::cursorActivity, this, &MainWindow::on_cursorActivity);
     connect(editor, &Editor::currentLanguageChanged, this, &MainWindow::on_currentLanguageChanged);
     connect(editor, &Editor::bannerRemoved, this, &MainWindow::on_bannerRemoved);
+    connect(editor, &Editor::cleanChanged, this, [=]() {
+        if (currentEditor() == editor)
+            refreshEditorUiInfo(editor);
+    });
 
     // Initialize editor with UI settings
     editor->setLineWrap(ui->actionWord_wrap->isChecked());
+    editor->setTabsVisible(ui->actionShow_Tabs->isChecked());
+    editor->setOverwrite(m_overwrite);
 }
 
 void MainWindow::on_cursorActivity()
@@ -648,13 +832,22 @@ void MainWindow::refreshEditorUiCursorInfo(Editor *editor)
         // Update status bar
         int len = editor->sendMessageWithResult("C_FUN_GET_TEXT_LENGTH").toInt();
         int lines = editor->sendMessageWithResult("C_FUN_GET_LINE_COUNT").toInt();
-        m_statusBar_lengthInfo->setText(tr("Length : %1     Lines : %2").arg(len).arg(lines));
+        m_statusBar_length_lines->setText(tr("%1 chars, %2 lines").arg(len).arg(lines));
 
         QPair<int, int> cursor = editor->cursorPosition();
-        m_statusBar_selectionInfo->setText(tr("Ln : %1     Col : %2     Sel : %3 | %4").
-                                         arg(cursor.first + 1).
-                                         arg(cursor.second + 1).
-                                         arg(0).arg(0));
+        int selectedChars = 0;
+        int selectedPieces = 0;
+        QStringList selections = editor->selectedTexts();
+        for (QString sel : selections) {
+            selectedChars += sel.length();
+            selectedPieces += sel.split("\n").count();
+        }
+
+        m_statusBar_curPos->setText(tr("Ln %1, col %2")
+                                     .arg(cursor.first + 1)
+                                     .arg(cursor.second + 1));
+
+        m_statusBar_selection->setText(tr("Sel %1 (%2)").arg(selectedChars).arg(selectedPieces));
     }
 }
 
@@ -704,7 +897,41 @@ void MainWindow::refreshEditorUiInfo(Editor *editor)
 
 
     // Enable / disable menus
-    ui->actionRename->setEnabled(!editor->fileName().isEmpty());
+    bool isClean = editor->isClean();
+    QUrl fileName = editor->fileName();
+    ui->actionRename->setEnabled(!fileName.isEmpty());
+    ui->actionMove_to_New_Window->setEnabled(isClean);
+    ui->actionOpen_in_New_Window->setEnabled(isClean);
+
+    // EOL
+    QString eol = editor->endOfLineSequence();
+    if (eol == "\r\n") {
+        ui->actionWindows_Format->setChecked(true);
+        m_statusBar_EOLstyle->setText(tr("Windows"));
+    } else if (eol == "\n") {
+        ui->actionUNIX_Format->setChecked(true);
+        m_statusBar_EOLstyle->setText(tr("UNIX / OS X"));
+    } else if (eol == "\r") {
+        ui->actionMac_Format->setChecked(true);
+        m_statusBar_EOLstyle->setText(tr("Old Mac"));
+    }
+
+    // Encoding
+    QString encoding;
+    if (editor->codec()->mibEnum() == MIB_UTF_8 && !editor->bom()) {
+        // Is UTF-8 without BOM
+        encoding = tr("%1 w/o BOM").arg(QString::fromUtf8(editor->codec()->name()));
+    } else {
+        encoding = QString::fromUtf8(editor->codec()->name());
+    }
+    m_statusBar_textFormat->setText(encoding);
+
+    // Indentation
+    if (editor->isUsingCustomIndentationMode()) {
+        ui->actionIndentation_Custom->setChecked(true);
+    } else {
+        ui->actionIndentation_Default_settings->setChecked(true);
+    }
 }
 
 void MainWindow::on_action_Delete_triggered()
@@ -773,12 +1000,13 @@ void MainWindow::on_actionE_xit_triggered()
 
 void MainWindow::on_actionSearch_triggered()
 {
-    if(!m_frmSearchReplace) {
+    if (!m_frmSearchReplace) {
         m_frmSearchReplace = new frmSearchReplace(
                             m_topEditorContainer,
                             this);
     }
     m_frmSearchReplace->show(frmSearchReplace::TabSearch);
+    m_frmSearchReplace->activateWindow();
 }
 
 void MainWindow::on_actionCurrent_Full_File_path_to_Clipboard_triggered()
@@ -877,6 +1105,7 @@ void MainWindow::on_fileOnDiskChanged(EditorTabWidget *tabWidget, int tab, bool 
 
         connect(banner, &BannerFileRemoved::ignore, this, [=]() {
             editor->removeBanner(banner);
+            editor->setFocus();
         });
 
         connect(banner, &BannerFileRemoved::save, this, [=]() {
@@ -890,11 +1119,14 @@ void MainWindow::on_fileOnDiskChanged(EditorTabWidget *tabWidget, int tab, bool 
 
         connect(banner, &BannerFileChanged::ignore, this, [=]() {
             editor->removeBanner(banner);
+            editor->setFocus();
             // FIXME Set editor as clean
         });
 
         connect(banner, &BannerFileChanged::reload, this, [=]() {
             editor->removeBanner(banner);
+            editor->setFocus();
+
             m_docEngine->reloadDocument(tabWidget, tab);
         });
     }
@@ -902,34 +1134,40 @@ void MainWindow::on_fileOnDiskChanged(EditorTabWidget *tabWidget, int tab, bool 
 
 void MainWindow::on_actionReplace_triggered()
 {
-    if(!m_frmSearchReplace) {
+    if (!m_frmSearchReplace) {
         m_frmSearchReplace = new frmSearchReplace(
                             m_topEditorContainer,
                             this);
     }
     m_frmSearchReplace->show(frmSearchReplace::TabReplace);
+    m_frmSearchReplace->activateWindow();
 }
 
 void MainWindow::on_actionPlain_text_triggered()
 {
-    currentEditor()->setLanguage("");
+    currentEditor()->setLanguage("plaintext");
 }
 
 void MainWindow::on_actionRestore_Default_Zoom_triggered()
 {
     m_topEditorContainer->currentTabWidget()->setZoomFactor(1);
+    m_settings->setValue("zoom", 1);
 }
 
 void MainWindow::on_actionZoom_In_triggered()
 {
     qreal curZoom = currentEditor()->zoomFactor();
-    m_topEditorContainer->currentTabWidget()->setZoomFactor(curZoom + 0.25);
+    qreal newZoom = curZoom + 0.25;
+    m_topEditorContainer->currentTabWidget()->setZoomFactor(newZoom);
+    m_settings->setValue("zoom", newZoom);
 }
 
 void MainWindow::on_actionZoom_Out_triggered()
 {
     qreal curZoom = currentEditor()->zoomFactor();
-    m_topEditorContainer->currentTabWidget()->setZoomFactor(curZoom - 0.25);
+    qreal newZoom = curZoom - 0.25;
+    m_topEditorContainer->currentTabWidget()->setZoomFactor(newZoom);
+    m_settings->setValue("zoom", newZoom);
 }
 
 void MainWindow::on_editorMouseWheel(EditorTabWidget *tabWidget, int tab, QWheelEvent *ev)
@@ -940,14 +1178,16 @@ void MainWindow::on_editorMouseWheel(EditorTabWidget *tabWidget, int tab, QWheel
         diff /= 10;
 
         // Increment/Decrement zoom factor by 0.1 at each step.
-        tabWidget->setZoomFactor(curZoom + diff);
+        qreal newZoom = curZoom + diff;
+        tabWidget->setZoomFactor(newZoom);
+        m_settings->setValue("zoom", newZoom);
     }
 }
 
 void MainWindow::transformSelectedText(std::function<QString (const QString &)> func)
 {
     Editor *editor = currentEditor();
-    QStringList sel = editor->sendMessageWithResult("C_FUN_GET_SELECTIONS_TEXT").toStringList();
+    QStringList sel = editor->selectedTexts();
 
     for (int i = 0; i < sel.length(); i++) {
         sel.replace(i, func(sel.at(i)));
@@ -1036,13 +1276,20 @@ void MainWindow::on_documentReloaded(EditorTabWidget *tabWidget, int tab)
     Editor *editor = tabWidget->editor(tab);
     editor->removeBanner("filechanged");
     editor->removeBanner("fileremoved");
+
+    if (currentEditor() == editor) {
+        refreshEditorUiInfo(editor);
+        refreshEditorUiCursorInfo(editor);
+    }
 }
 
 void MainWindow::on_documentLoaded(EditorTabWidget *tabWidget, int tab)
 {
+    Editor *editor = tabWidget->editor(tab);
+
     const int MAX_RECENT_ENTRIES = 10;
 
-    QUrl newUrl = tabWidget->editor(tab)->fileName();
+    QUrl newUrl = editor->fileName();
     QList<QVariant> recentDocs = m_settings->value("recentDocuments", QList<QVariant>()).toList();
     recentDocs.insert(0, QVariant(newUrl));
 
@@ -1058,6 +1305,48 @@ void MainWindow::on_documentLoaded(EditorTabWidget *tabWidget, int tab)
     m_settings->setValue("recentDocuments", QVariant(recentDocs));
 
     updateRecentDocsInMenu();
+
+
+    checkIndentationMode(editor);
+}
+
+void MainWindow::checkIndentationMode(Editor *editor)
+{
+    bool found = false;
+    Editor::IndentationMode detected = editor->detectDocumentIndentation(&found);
+    if (found) {
+        Editor::IndentationMode curr = editor->indentationMode();
+        bool differentTabSpaces = detected.useTabs != curr.useTabs;
+        bool differentSpaceSize = detected.useTabs == false && curr.useTabs == false && detected.size != curr.size;
+
+        if (differentTabSpaces || differentSpaceSize) {
+            // Show msg
+            BannerIndentationDetected *banner = new BannerIndentationDetected(
+                        differentSpaceSize,
+                        detected,
+                        curr,
+                        this);
+            banner->setObjectName("indentationdetected");
+
+            editor->insertBanner(banner);
+
+            connect(banner, &BannerIndentationDetected::useApplicationSettings, this, [=]() {
+                editor->removeBanner(banner);
+                editor->setFocus();
+            });
+
+            connect(banner, &BannerIndentationDetected::useDocumentSettings, this, [=]() {
+                editor->removeBanner(banner);
+                if (detected.useTabs) {
+                    editor->setCustomIndentationMode(true);
+                } else {
+                    editor->setCustomIndentationMode(detected.useTabs, detected.size);
+                }
+                ui->actionIndentation_Custom->setChecked(true);
+                editor->setFocus();
+            });
+        }
+    }
 }
 
 void MainWindow::updateRecentDocsInMenu()
@@ -1097,8 +1386,12 @@ void MainWindow::updateRecentDocsInMenu()
 void MainWindow::on_actionReload_from_Disk_triggered()
 {
     EditorTabWidget *tabWidget = m_topEditorContainer->currentTabWidget();
-    m_docEngine->reloadDocument(tabWidget,
-                                tabWidget->currentIndex());
+    Editor *editor = tabWidget->currentEditor();
+
+    reloadWithWarning(tabWidget,
+                      tabWidget->currentIndex(),
+                      editor->codec(),
+                      editor->bom());
 }
 
 void MainWindow::on_actionFind_Next_triggered()
@@ -1120,14 +1413,20 @@ void MainWindow::on_actionRename_triggered()
     int result = saveAs(tabW, tabW->currentIndex(), false);
 
     if (result == saveFileResult_Saved && !oldFilename.isEmpty()) {
-        QString filename = oldFilename.toLocalFile();
-        if (QFile::exists(filename)) {
-            if(!QFile::remove(filename)) {
-                QMessageBox::warning(this, QApplication::applicationName(),
-                                     QString("Error: unable to remove file %1")
-                                     .arg(filename));
+
+        if (QFileInfo(oldFilename.toLocalFile()) != QFileInfo(tabW->currentEditor()->fileName().toLocalFile())) {
+
+            // Remove the old file
+            QString filename = oldFilename.toLocalFile();
+            if (QFile::exists(filename)) {
+                if(!QFile::remove(filename)) {
+                    QMessageBox::warning(this, QApplication::applicationName(),
+                                         QString("Error: unable to remove file %1")
+                                         .arg(filename));
+                }
             }
         }
+
     }
 }
 
@@ -1137,6 +1436,7 @@ void MainWindow::on_actionWord_wrap_toggled(bool on)
         editor->setLineWrap(on);
         return true;
     });
+    m_settings->setValue("wordWrap", on);
 }
 
 void MainWindow::on_actionEmpty_Recent_Files_List_triggered()
@@ -1155,4 +1455,314 @@ void MainWindow::on_actionOpen_All_Recent_Files_triggered()
     }
 
     m_docEngine->loadDocuments(convertedList, m_topEditorContainer->currentTabWidget());
+}
+
+void MainWindow::on_actionUNIX_Format_triggered()
+{
+    Editor *editor = currentEditor();
+    editor->setEndOfLineSequence("\n");
+    editor->markDirty();
+}
+
+void MainWindow::on_actionWindows_Format_triggered()
+{
+    Editor *editor = currentEditor();
+    editor->setEndOfLineSequence("\r\n");
+    editor->markDirty();
+}
+
+void MainWindow::on_actionMac_Format_triggered()
+{
+    Editor *editor = currentEditor();
+    editor->setEndOfLineSequence("\r");
+    editor->markDirty();
+}
+
+void MainWindow::convertEditorEncoding(Editor *editor, QTextCodec *codec, bool bom)
+{
+    editor->setCodec(codec);
+    editor->setBom(bom);
+    editor->markDirty();
+
+    if (editor == currentEditor())
+        refreshEditorUiInfo(editor);
+}
+
+void MainWindow::on_actionUTF_8_triggered()
+{
+    convertEditorEncoding(currentEditor(), QTextCodec::codecForName("UTF-8"), true);
+}
+
+void MainWindow::on_actionUTF_8_without_BOM_triggered()
+{
+    convertEditorEncoding(currentEditor(), QTextCodec::codecForName("UTF-8"), false);
+}
+
+void MainWindow::on_actionUTF_16BE_triggered()
+{
+    convertEditorEncoding(currentEditor(), QTextCodec::codecForName("UTF-16BE"), true);
+}
+
+void MainWindow::on_actionUTF_16LE_triggered()
+{
+    convertEditorEncoding(currentEditor(), QTextCodec::codecForName("UTF-16LE"), true);
+}
+
+void MainWindow::on_actionInterpret_as_UTF_8_triggered()
+{
+    m_docEngine->reinterpretEncoding(currentEditor(), QTextCodec::codecForName("UTF-8"), true);
+}
+
+void MainWindow::on_actionInterpret_as_UTF_8_without_BOM_triggered()
+{
+    m_docEngine->reinterpretEncoding(currentEditor(), QTextCodec::codecForName("UTF-8"), false);
+}
+
+void MainWindow::on_actionInterpret_as_UTF_16BE_UCS_2_Big_Endian_triggered()
+{
+    m_docEngine->reinterpretEncoding(currentEditor(), QTextCodec::codecForName("UTF-16BE"), true);
+}
+
+void MainWindow::on_actionInterpret_as_UTF_16LE_UCS_2_Little_Endian_triggered()
+{
+    m_docEngine->reinterpretEncoding(currentEditor(), QTextCodec::codecForName("UTF-16LE"), true);
+}
+
+void MainWindow::on_actionShow_Tabs_toggled(bool on)
+{
+    m_topEditorContainer->forEachEditor([&](const int /*tabWidgetId*/, const int /*editorId*/, EditorTabWidget */*tabWidget*/, Editor *editor) {
+        editor->setTabsVisible(on);
+        return true;
+    });
+    m_settings->setValue("tabsVisible", on);
+}
+
+void MainWindow::on_actionConvert_to_triggered()
+{
+    Editor *editor = currentEditor();
+    frmEncodingChooser *dialog = new frmEncodingChooser(this);
+    dialog->setEncoding(editor->codec());
+    dialog->setInfoText(tr("Convert to:"));
+
+    if (dialog->exec() == QDialog::Accepted) {
+        convertEditorEncoding(editor, dialog->selectedCodec(), false);
+    }
+
+    dialog->deleteLater();
+}
+
+void MainWindow::on_actionReload_file_interpreted_as_triggered()
+{
+    Editor *editor = currentEditor();
+    frmEncodingChooser *dialog = new frmEncodingChooser(this);
+    dialog->setEncoding(editor->codec());
+    dialog->setInfoText(tr("Reload as:"));
+
+    if (dialog->exec() == QDialog::Accepted) {
+        EditorTabWidget *tabWidget = m_topEditorContainer->currentTabWidget();
+        reloadWithWarning(tabWidget, tabWidget->currentIndex(), dialog->selectedCodec(), false);
+    }
+
+    dialog->deleteLater();
+}
+
+void MainWindow::on_actionIndentation_Default_settings_triggered()
+{
+    currentEditor()->clearCustomIndentationMode();
+}
+
+void MainWindow::on_actionIndentation_Custom_triggered()
+{
+    Editor *editor = currentEditor();
+
+    frmIndentationMode *dialog = new frmIndentationMode(this);
+    dialog->populateWidgets(editor->indentationMode());
+
+    if (dialog->exec() == QDialog::Accepted) {
+        Editor::IndentationMode indent = dialog->indentationMode();
+        editor->setCustomIndentationMode(indent.useTabs, indent.size);
+    }
+
+    // Make sure the UI is consistent even if the user canceled the dialog.
+    if (editor->isUsingCustomIndentationMode()) {
+        ui->actionIndentation_Custom->setChecked(true);
+    } else {
+        ui->actionIndentation_Default_settings->setChecked(true);
+    }
+
+    dialog->deleteLater();
+}
+
+void MainWindow::on_actionInterpret_as_triggered()
+{
+    Editor *editor = currentEditor();
+    frmEncodingChooser *dialog = new frmEncodingChooser(this);
+    dialog->setEncoding(editor->codec());
+    dialog->setInfoText(tr("Interpret as:"));
+
+    if (dialog->exec() == QDialog::Accepted) {
+        m_docEngine->reinterpretEncoding(editor, dialog->selectedCodec(), false);
+    }
+
+    dialog->deleteLater();
+}
+
+void MainWindow::on_actionPrint_triggered()
+{
+    /*QPrinter printer;
+    QPrintDialog *dialog = new QPrintDialog(&printer);
+    if ( dialog->exec() == QDialog::Accepted)
+          currentEditor()->print(&printer);*/
+
+    /*QPrinter *printer = new QPrinter(QPrinter::HighResolution);
+    QPrintPreviewDialog *pd = new QPrintPreviewDialog(printer);
+    connect(pd, &QPrintPreviewDialog::paintRequested, currentEditor(), &Editor::print);
+
+    pd->exec();
+
+    delete printer;
+    pd->deleteLater();*/
+}
+
+void MainWindow::on_actionLaunch_in_Firefox_triggered()
+{
+    QUrl fileName = currentEditor()->fileName();
+    if (!fileName.isEmpty()) {
+        QStringList args;
+        args << fileName.toString(QUrl::None);
+        QProcess::startDetached("firefox", args);
+    }
+}
+
+void MainWindow::on_actionLaunch_in_Chromium_triggered()
+{
+    QUrl fileName = currentEditor()->fileName();
+    if (!fileName.isEmpty()) {
+        QStringList args;
+        args << fileName.toString(QUrl::None);
+        QProcess::startDetached("chromium-browser", args);
+    }
+}
+
+void MainWindow::on_actionLaunch_in_Chrome_triggered()
+{
+    QUrl fileName = currentEditor()->fileName();
+    if (!fileName.isEmpty()) {
+        QStringList args;
+        args << fileName.toString(QUrl::None);
+        QProcess::startDetached("google-chrome", args);
+    }
+}
+
+QStringList MainWindow::currentWordOrSelections()
+{
+    Editor *editor = currentEditor();
+    QStringList selection = editor->selectedTexts();
+
+    if (selection.isEmpty() || selection.first().isEmpty()) {
+        return QStringList(editor->getCurrentWord());
+    } else {
+        return selection;
+    }
+}
+
+QString MainWindow::currentWordOrSelection()
+{
+    QStringList terms = currentWordOrSelections();
+    if (terms.isEmpty()) {
+        return QString();
+    } else {
+        return terms.first();
+    }
+}
+
+void MainWindow::currentWordOnlineSearch(const QString &searchUrl)
+{
+    QString term = currentWordOrSelection();
+
+    if (!term.isNull() && !term.isEmpty()) {
+        QUrl phpHelp = QUrl(searchUrl.arg(QString(QUrl::toPercentEncoding(term))));
+        QDesktopServices::openUrl(phpHelp);
+    }
+}
+
+void MainWindow::on_actionGet_php_help_triggered()
+{
+    currentWordOnlineSearch("https://php.net/%1");
+}
+
+void MainWindow::on_actionGoogle_Search_triggered()
+{
+    currentWordOnlineSearch("https://www.google.com/?#q=%1");
+}
+
+void MainWindow::on_actionWikipedia_Search_triggered()
+{
+    currentWordOnlineSearch("https://en.wikipedia.org/?search=%1");
+}
+
+void MainWindow::on_actionOpen_a_New_Window_triggered()
+{
+    MainWindow *b = new MainWindow(QStringList(), 0);
+    b->show();
+}
+
+void MainWindow::on_actionOpen_in_New_Window_triggered()
+{
+    QStringList args;
+    args.append(QApplication::arguments().first());
+    if (!currentEditor()->fileName().isEmpty()) {
+        args.append(currentEditor()->fileName().toString(QUrl::None));
+    }
+
+    MainWindow *b = new MainWindow(args, 0);
+    b->show();
+}
+
+void MainWindow::on_actionMove_to_New_Window_triggered()
+{
+    QStringList args;
+    args.append(QApplication::arguments().first());
+    if (!currentEditor()->fileName().isEmpty()) {
+        args.append(currentEditor()->fileName().toString(QUrl::None));
+    }
+
+    EditorTabWidget *tabWidget = m_topEditorContainer->currentTabWidget();
+    int tab = tabWidget->currentIndex();
+    if (closeTab(tabWidget, tab) != tabCloseResult_Canceled) {
+        MainWindow *b = new MainWindow(args, 0);
+        b->show();
+    }
+}
+
+void MainWindow::on_actionOpen_file_triggered()
+{
+    QStringList terms = currentWordOrSelections();
+    if (!terms.isEmpty()) {
+        QList<QUrl> urls;
+        for (QString term : terms) {
+            urls.append(QUrl::fromLocalFile(term));
+        }
+
+        m_docEngine->loadDocuments(urls,
+                               m_topEditorContainer->currentTabWidget());
+    }
+}
+
+void MainWindow::on_actionOpen_in_another_window_triggered()
+{
+    QStringList terms = currentWordOrSelections();
+    if (!terms.isEmpty()) {
+        terms.prepend(QApplication::arguments().first());
+
+        MainWindow *b = new MainWindow(terms, 0);
+        b->show();
+    }
+}
+
+void MainWindow::on_tabBarDoubleClicked(EditorTabWidget *tabWidget, int tab)
+{
+    if (tab == -1) {
+        m_docEngine->addNewDocument(getNewDocumentName(), true, tabWidget);
+    }
 }

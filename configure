@@ -1,0 +1,58 @@
+#!/bin/sh
+
+# --qmake-args <arguments>
+# --qmake-path <path>
+# --prefix <prefix>
+
+QMAKE_PATH=qmake
+
+while [ "$#" -ge 1 ]
+do
+key="$1"
+shift
+
+case $key in
+    -h|--help)
+    echo "Configure script"
+    exit
+    shift
+    ;;
+    --prefix=*) # --prefix=<something>
+    PREFIX="${key#*=}"
+    ;;
+    --prefix) # --prefix <something>
+    PREFIX="$1"
+    shift
+    ;;
+    --qmake-path)
+    QMAKE_PATH="$1"
+    shift
+    ;;
+    --qmake-args)
+    # Leave qmake args in $@
+    break
+    ;;
+    *)
+    echo WARNING: Unknown option "$key"
+    ;;
+esac
+done
+
+# If we're in a git repo, update the submodules.
+# If ".git" is not found, assume that the complete source
+# code is already available.
+if [ -d ".git" ]; then
+    git submodule init
+    git submodule update
+fi
+
+if [ -f "Makefile" ]; then
+    make distclean
+fi
+
+"$QMAKE_PATH" PREFIX="$PREFIX" \
+QMAKE_CFLAGS_RELEASE="$CFLAGS $CPPFLAGS" \
+QMAKE_CFLAGS_DEBUG="$CFLAGS $CPPFLAGS" \
+QMAKE_CXXFLAGS_RELEASE="$CXXFLAGS $CPPFLAGS" \
+QMAKE_CXXFLAGS_DEBUG="$CXXFLAGS $CPPFLAGS" \
+"$@" notepadqq.pro

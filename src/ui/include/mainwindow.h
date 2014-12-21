@@ -9,6 +9,7 @@
 #include "docengine.h"
 #include "frmsearchreplace.h"
 #include <functional>
+#include "QtPrintSupport/QPrinter"
 
 namespace Ui {
 class MainWindow;
@@ -19,8 +20,12 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = 0);
+    explicit MainWindow(const QString &workingDirectory, const QStringList &arguments, QWidget *parent = 0);
+    explicit MainWindow(const QStringList &arguments, QWidget *parent = 0);
     ~MainWindow();
+
+    static QList<MainWindow *> instances();
+    static MainWindow * lastActiveInstance();
 
     /**
      * Describes the result of a save process. For example, if the user cancels the save dialog, \p saveFileResult_Canceled is returned.
@@ -48,10 +53,17 @@ public:
         ,askToSaveChangesReason_generic     /** Generic reason */
     };
 
+    TopEditorContainer *topEditorContainer();
+
+    void openCommandLineProvidedUrls(const QString &workingDirectory, const QStringList &arguments);
+
 protected:
     void closeEvent(QCloseEvent *event);
     void dragEnterEvent(QDragEnterEvent *e);
     void dropEvent(QDropEvent *e);
+    void keyPressEvent(QKeyEvent *ev);
+    void changeEvent(QEvent *e);
+
 private slots:
     void refreshEditorUiInfo(Editor *editor);
     void refreshEditorUiCursorInfo(Editor *editor);
@@ -105,25 +117,56 @@ private slots:
     void on_actionFind_Previous_triggered();
     void on_actionRename_triggered();
     void on_actionWord_wrap_toggled(bool on);
-
     void on_actionEmpty_Recent_Files_List_triggered();
-
     void on_actionOpen_All_Recent_Files_triggered();
-
+    void on_actionUNIX_Format_triggered();
+    void on_actionWindows_Format_triggered();
+    void on_actionMac_Format_triggered();
+    void on_actionUTF_8_triggered();
+    void on_actionUTF_8_without_BOM_triggered();
+    void on_actionUTF_16BE_triggered();
+    void on_actionUTF_16LE_triggered();
+    void on_actionInterpret_as_UTF_8_triggered();
+    void on_actionInterpret_as_UTF_8_without_BOM_triggered();
+    void on_actionInterpret_as_UTF_16BE_UCS_2_Big_Endian_triggered();
+    void on_actionInterpret_as_UTF_16LE_UCS_2_Little_Endian_triggered();
+    void on_actionShow_Tabs_toggled(bool on);
+    void on_actionConvert_to_triggered();
+    void on_actionIndentation_Default_settings_triggered();
+    void on_actionIndentation_Custom_triggered();
+    void on_actionReload_file_interpreted_as_triggered();
+    void on_actionInterpret_as_triggered();
+    void on_actionPrint_triggered();
+    void on_actionLaunch_in_Firefox_triggered();
+    void on_actionLaunch_in_Chromium_triggered();
+    void on_actionLaunch_in_Chrome_triggered();
+    void on_actionGet_php_help_triggered();
+    void on_actionGoogle_Search_triggered();
+    void on_actionWikipedia_Search_triggered();
+    void on_actionOpen_a_New_Window_triggered();
+    void on_actionOpen_in_New_Window_triggered();
+    void on_actionMove_to_New_Window_triggered();
+    void on_actionOpen_file_triggered();
+    void on_actionOpen_in_another_window_triggered();
+    void on_tabBarDoubleClicked(EditorTabWidget *tabWidget, int tab);
 private:
+    static QList<MainWindow*> m_instances;
     Ui::MainWindow*     ui;
     TopEditorContainer* m_topEditorContainer;
     DocEngine*          m_docEngine;
     QMenu*              m_tabContextMenu;
     QList<QAction *>    m_tabContextMenuActions;
     QLabel*             m_statusBar_fileFormat;
-    QLabel*             m_statusBar_lengthInfo;
-    QLabel*             m_statusBar_selectionInfo;
+    QLabel*             m_statusBar_length_lines;
+    QLabel*             m_statusBar_curPos;
+    QLabel*             m_statusBar_selection;
     QLabel*             m_statusBar_EOLstyle;
     QLabel*             m_statusBar_textFormat;
     QLabel*             m_statusBar_overtypeNotify;
     QSettings*          m_settings;
     frmSearchReplace*   m_frmSearchReplace = 0;
+    bool                m_overwrite = false; // Overwrite mode vs Insert mode
+
     void                removeTabWidgetIfEmpty(EditorTabWidget *tabWidget);
     void                createStatusBar();
     int                 askIfWantToSave(EditorTabWidget *tabWidget, int tab, int reason);
@@ -158,12 +201,19 @@ private:
     int                 saveAs(EditorTabWidget *tabWidget, int tab, bool copy);
     QUrl                getSaveDialogDefaultFileName(EditorTabWidget *tabWidget, int tab);
     Editor*             currentEditor();
-    void                openCommandLineProvidedUrls();
     void                setupLanguagesMenu();
     void                transformSelectedText(std::function<QString (const QString &)> func);
     void                restoreWindowSettings();
     void                loadIcons();
     void                updateRecentDocsInMenu();
+    void                convertEditorEncoding(Editor *editor, QTextCodec *codec, bool bom);
+    void                toggleOverwrite();
+    void                checkIndentationMode(Editor *editor);
+    bool                reloadWithWarning(EditorTabWidget *tabWidget, int tab, QTextCodec *codec, bool bom);
+    QStringList         currentWordOrSelections();
+    QString             currentWordOrSelection();
+    void                currentWordOnlineSearch(const QString &searchUrl);
+    QString             getNewDocumentName();
 };
 
 #endif // MAINWINDOW_H

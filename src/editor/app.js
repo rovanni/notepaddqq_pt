@@ -1,5 +1,6 @@
 var editor;
 var changeGeneration;
+var forceDirty = false;
 
 UiDriver.registerEventHandler("C_CMD_SET_VALUE", function(msg, data, prevReturn) {
     editor.setValue(data);
@@ -9,21 +10,42 @@ UiDriver.registerEventHandler("C_FUN_GET_VALUE", function(msg, data, prevReturn)
     return editor.getValue("\n");
 });
 
+/* Returns true if the editor is clean, false if
+   it's dirty or it's clean but forceDirty = true.
+   You'll generally want to use this function instead of
+   CodeMirror.isClean()
+*/
+function isCleanOrForced(generation) {
+    return !forceDirty && editor.isClean(generation);
+}
+
 UiDriver.registerEventHandler("C_CMD_MARK_CLEAN", function(msg, data, prevReturn) {
+    forceDirty = false;
     changeGeneration = editor.changeGeneration(true);
-    UiDriver.sendMessage("J_EVT_CLEAN_CHANGED", editor.isClean(changeGeneration));
+    UiDriver.sendMessage("J_EVT_CLEAN_CHANGED", isCleanOrForced(changeGeneration));
+});
+
+UiDriver.registerEventHandler("C_CMD_MARK_DIRTY", function(msg, data, prevReturn) {
+    forceDirty = true;
+    UiDriver.sendMessage("J_EVT_CLEAN_CHANGED", isCleanOrForced(changeGeneration));
 });
 
 UiDriver.registerEventHandler("C_FUN_IS_CLEAN", function(msg, data, prevReturn) {
-    return editor.isClean(changeGeneration);
+    return isCleanOrForced(changeGeneration);
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_LANGUAGE", function(msg, data, prevReturn) {
     Languages.setLanguage(editor, data);
 });
 
+/*
+    Sets the language by finding the more appropriate one for the file name.
+    E.g. path/to/worker.js => JavaScript
+    If nothing can be inferred from the file name, it looks at the editor content to see if it
+    can guess something (eg. files starting with #! are probably shell scripts).
+*/
 UiDriver.registerEventHandler("C_FUN_SET_LANGUAGE_FROM_FILENAME", function(msg, data, prevReturn) {
-    var lang = Languages.languageByFileName(data);
+    var lang = Languages.languageByFileName(editor, data);
     Languages.setLanguage(editor, lang);
     return lang;
 });
@@ -35,10 +57,17 @@ UiDriver.registerEventHandler("C_FUN_GET_CURRENT_LANGUAGE", function(msg, data, 
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_INDENTATION_MODE", function(msg, data, prevReturn) {
-    editor.options.indentWithTabs = data.useTabs;
-    editor.options.indentUnit = data.size;
-    editor.options.tabSize = data.size;
+    editor.setOption("indentWithTabs", data.useTabs);
+    if (data.size !== undefined && data.size > 0) {
+        editor.setOption("indentUnit", data.size);
+        editor.setOption("tabSize", data.size);
+    }
+
     editor.refresh();
+});
+
+UiDriver.registerEventHandler("C_FUN_GET_INDENTATION_MODE", function(msg, data, prevReturn) {
+    return { useTabs: editor.options.indentWithTabs, size: editor.options.indentUnit };
 });
 
 UiDriver.registerEventHandler("C_FUN_GET_SELECTIONS_TEXT", function(msg, data, prevReturn) {
@@ -71,6 +100,29 @@ UiDriver.registerEventHandler("C_CMD_SET_SELECTIONS_TEXT", function(msg, data, p
         editor.replaceSelection(dataSelections.join("\n"), selectMode);
 });
 
+/*
+    Retrieves a list of all current selections.
+    These will always be sorted, and never overlap (overlapping selections
+    are merged). Each object in the array contains anchor and head properties
+    referring to {line, ch} objects.
+*/
+UiDriver.registerEventHandler("C_FUN_GET_SELECTIONS", function(msg, data, prevReturn) {
+    var out = [];
+    var sels = editor.listSelections();
+    for (var i = 0; i < sels.length; i++) {
+        out[i] = { anchor: {
+                     line: sels[i].anchor.line,
+                     ch: sels[i].anchor.ch
+                   },
+                   head: {
+                     line: sels[i].head.line,
+                     ch: sels[i].head.ch
+                   }
+                 };
+    }
+    return out;
+});
+
 UiDriver.registerEventHandler("C_FUN_GET_TEXT_LENGTH", function(msg, data, prevReturn) {
     return editor.getValue("\n").length;
 });
@@ -85,9 +137,9 @@ UiDriver.registerEventHandler("C_FUN_GET_CURSOR", function(msg, data, prevReturn
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_CURSOR", function(msg, data, prevReturn) {
-	var line = data[0];
-	var ch = data[1];
-	editor.setCursor(line, ch);
+    var line = data[0];
+    var ch = data[1];
+    editor.setCursor(line, ch);
 });
 
 UiDriver.registerEventHandler("C_FUN_GET_SCROLL_POS", function(msg, data, prevReturn) {
@@ -96,9 +148,9 @@ UiDriver.registerEventHandler("C_FUN_GET_SCROLL_POS", function(msg, data, prevRe
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_SCROLL_POS", function(msg, data, prevReturn) {
-	var left = data[0];
-	var top = data[1];
-	editor.scrollTo(left, top);
+    var left = data[0];
+    var top = data[1];
+    editor.scrollTo(left, top);
 });
 
 UiDriver.registerEventHandler("C_CMD_SELECT_ALL", function(msg, data, prevReturn) {
@@ -121,6 +173,14 @@ UiDriver.registerEventHandler("C_CMD_SET_LINE_WRAP", function(msg, data, prevRet
     editor.setOption("lineWrapping", data == true);
 });
 
+UiDriver.registerEventHandler("C_CMD_SET_TABS_VISIBLE", function(msg, data, prevReturn) {
+    if (data) {
+        $(".editor").addClass("show-tabs");
+    } else {
+        $(".editor").removeClass("show-tabs");
+    }
+});
+
 /* Search with a specified regex. Automatically select the text when found.
    The return value indicates whether a match was found.
    The return value is the array returned by the regex match method, in case you
@@ -141,9 +201,24 @@ function Search(regexStr, regexModifiers, forward) {
 
     // We get a new cursor every time, because the user could have moved within
     // the editor and we want to start searching from the new position.
-    var searchCursor = editor.getSearchCursor(new RegExp(regexStr, regexModifiers), startPos, false);
+    var searchRegex = new RegExp(regexStr, regexModifiers);
+    var searchCursor = editor.getSearchCursor(searchRegex, startPos, false);
 
     var ret = forward ? searchCursor.findNext() : searchCursor.findPrevious();
+
+    if (!ret) {
+        // Maybe the end was reached. Try again from the start.
+        if (forward) {
+            searchCursor = editor.getSearchCursor(searchRegex, null, false);
+        } else {
+            var line = editor.lineCount() - 1;
+            var ch = editor.getLine(line).length;
+            searchCursor = editor.getSearchCursor(searchRegex, {line: line, ch: ch}, false);
+        }
+
+        ret = forward ? searchCursor.findNext() : searchCursor.findPrevious();
+    }
+
     if (ret) {
         if (forward)
              editor.setSelection(searchCursor.from(), searchCursor.to());
@@ -226,10 +301,85 @@ UiDriver.registerEventHandler("C_FUN_GET_LANGUAGES", function(msg, data, prevRet
     return Languages.languages;
 });
 
+UiDriver.registerEventHandler("C_CMD_SET_THEME", function(msg, data, prevReturn) {
+    if (data.path != "") {
+        var stylesheet = $("link[href='" + data.path + "']");
+        if (stylesheet.length > 0) {
+            // Stylesheet already exists, move it to the bottom
+            stylesheet.appendTo('head');
+        } else {
+            // Add the stylesheet
+            addStylesheet(data.path);
+        }
+    }
+
+    editor.setOption("theme", data.name);
+});
+
+UiDriver.registerEventHandler("C_CMD_SET_OVERWRITE", function(msg, data, prevReturn) {
+    editor.toggleOverwrite(data);
+});
+
+UiDriver.registerEventHandler("C_CMD_SET_FOCUS", function(msg, data, prevReturn) {
+    editor.focus();
+});
+
+UiDriver.registerEventHandler("C_FUN_DETECT_INDENTATION_MODE", function(msg, data, prevReturn) {
+    var len = editor.lineCount();
+    var regexIndented = /^([ ]{2,}|[\t]+)[^ \t]+?/g; // Is not blank, and is indented with tab or space
+
+    for (var i = 0; i < len && i < 100; i++) {
+        var line = editor.getLine(i);
+        var matches = regexIndented.exec(line);
+        if (matches !== null) {
+            if (line[0] === "\t") { // Is a tab
+                return {found: true, useTabs: true, size: 0};
+            } else { // Is a space
+                var size = matches[1].length;
+                if (size === 2 || size === 4 || size === 8) {
+                    return {found: true, useTabs: false, size: size};
+                } else {
+                    return {found: false};
+                }
+            }
+        }
+    }
+
+    return {found: false};
+});
+
+UiDriver.registerEventHandler("C_CMD_DISPLAY_PRINT_STYLE", function(msg, data, prevReturn) {
+    Printer.displayPrintStyle($(".editor")[0], editor);
+});
+
+UiDriver.registerEventHandler("C_CMD_DISPLAY_NORMAL_STYLE", function(msg, data, prevReturn) {
+    Printer.displayNormalStyle($(".editor")[0], editor);
+});
+
+/*
+    Get the word under the (first) cursor head, or an empty string if there isn't one.
+*/
+UiDriver.registerEventHandler("C_FUN_GET_CURRENT_WORD", function(msg, data, prevReturn) {
+    var cur = editor.getCursor();
+    var line = editor.getLine(cur.line);
+
+    var strL = line.substring(0, cur.ch);
+    var strR = line.substring(cur.ch);
+    var regexL = /[^\w]?(\w*)$/;
+    var regexR = /^(\w*)[^\w]?/;
+    var matchL = regexL.exec(strL);
+    var matchR = regexR.exec(strR);
+
+    var word = "";
+    if (matchL !== null) word += matchL[1];
+    if (matchR !== null) word += matchR[1];
+
+    return word;
+});
+
 
 $(document).ready(function () {
     editor = CodeMirror($(".editor")[0], {
-        autofocus: true,
         lineNumbers: true,
         mode: { name: "" },
         highlightSelectionMatches: {style: "selectedHighlight", wordsOnly: true, delay: 25},
@@ -240,7 +390,9 @@ $(document).ready(function () {
         indentWithTabs: true,
         indentUnit: 4,
         tabSize: 4,
-        matchBrackets: true
+        matchBrackets: true,
+        extraKeys: {"Ctrl-Space": "autocomplete"},
+        theme: _defaultTheme
     });
 
     editor.addKeyMap({
@@ -268,7 +420,7 @@ $(document).ready(function () {
 
     editor.on("change", function(instance, changeObj) {
         UiDriver.sendMessage("J_EVT_CONTENT_CHANGED");
-        UiDriver.sendMessage("J_EVT_CLEAN_CHANGED", editor.isClean(changeGeneration));
+        UiDriver.sendMessage("J_EVT_CLEAN_CHANGED", isCleanOrForced(changeGeneration));
     });
 
     editor.on("cursorActivity", function(instance, changeObj) {

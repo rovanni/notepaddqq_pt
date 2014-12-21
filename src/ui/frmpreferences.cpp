@@ -1,6 +1,8 @@
 #include "include/frmpreferences.h"
 #include "include/EditorNS/editor.h"
 #include "ui_frmpreferences.h"
+#include "include/EditorNS/editor.h"
+#include "include/mainwindow.h"
 
 frmPreferences::frmPreferences(TopEditorContainer *topEditorContainer, QWidget *parent) :
     QDialog(parent),
@@ -10,6 +12,23 @@ frmPreferences::frmPreferences(TopEditorContainer *topEditorContainer, QWidget *
 {
     ui->setupUi(this);
 
+    setFixedSize(this->width(), this->height());
+    setWindowFlags((windowFlags() | Qt::CustomizeWindowHint) & ~Qt::WindowMaximizeButtonHint);
+
+    m_previewEditor = Editor::getNewEditor(this);
+    m_previewEditor->setLanguageFromFileName("test.js");
+    m_previewEditor->setValue(R"(var enabled = false;)" "\n"
+                              R"()" "\n"
+                              R"(function example(a, b) {)" "\n"
+                              R"(    if (b == 0 && enabled) {)" "\n"
+                              R"(        var ret = a > 3 ? "ok" : null;)" "\n"
+                              R"(        return !ret;)" "\n"
+                              R"(    })" "\n"
+                              R"()" "\n"
+                              R"(    return example(a + 1, 0);)" "\n"
+                              R"(})" "\n"
+                              );
+
     // Select first item in treeWidget
     ui->treeWidget->setCurrentItem(ui->treeWidget->topLevelItem(0));
 
@@ -18,6 +37,9 @@ frmPreferences::frmPreferences(TopEditorContainer *topEditorContainer, QWidget *
     ui->chkCheckQtVersionAtStartup->setChecked(s.value("checkQtVersionAtStartup", true).toBool());
 
     loadLanguages(&s);
+    loadColorSchemes(&s);
+
+    ui->chkSearch_SearchAsIType->setChecked(s.value("Search/SearchAsIType", true).toBool());
 }
 
 frmPreferences::~frmPreferences()
@@ -42,13 +64,31 @@ void frmPreferences::on_buttonBox_accepted()
     s.setValue("checkQtVersionAtStartup", ui->chkCheckQtVersionAtStartup->isChecked());
 
     saveLanguages(&s);
-
+    saveColorScheme(&s);
 
     // Apply changes to currently opened editors
-    m_topEditorContainer->forEachEditor([&](const int /*tabWidgetId*/, const int /*editorId*/, EditorTabWidget * /*tabWidget*/, Editor *editor) {
-        editor->setLanguage(editor->language());
-        return true;
-    });
+    for (MainWindow *w : MainWindow::instances()) {
+        w->topEditorContainer()->forEachEditor([&](const int, const int, EditorTabWidget *, Editor *editor) {
+
+            // Reset language-dependent settings (e.g. tab settings)
+            editor->setLanguage(editor->language());
+
+            // Set theme
+            QMap<QString, QVariant> theme_map = ui->cmbColorScheme->currentData().toMap();
+            Editor::Theme theme;
+            theme.name = theme_map.value("name").toString();
+            theme.path = theme_map.value("path").toString();
+            editor->setTheme(theme);
+
+            // Invalidate already initialized editors in the buffer
+            editor->invalidateEditorBuffer();
+            editor->addEditorToBuffer();
+
+            return true;
+        });
+    }
+
+    s.setValue("Search/SearchAsIType", ui->chkSearch_SearchAsIType->isChecked());
 
     accept();
 }
@@ -90,6 +130,37 @@ void frmPreferences::loadLanguages(QSettings *s)
     ui->cmbLanguages->currentIndexChanged(0);
 }
 
+void frmPreferences::loadColorSchemes(QSettings *s)
+{
+    QList<Editor::Theme> themes = m_topEditorContainer->currentTabWidget()->currentEditor()->themes();
+
+    QMap<QString, QVariant> defaultTheme;
+    defaultTheme.insert("name", "default");
+    defaultTheme.insert("path", "");
+    ui->cmbColorScheme->addItem("Default", defaultTheme);
+    ui->cmbColorScheme->setCurrentIndex(0);
+
+    QString themeSetting = s->value("Appearance/ColorScheme", "").toString();
+
+    for (Editor::Theme theme : themes) {
+        QMap<QString, QVariant> tmap;
+        tmap.insert("name", theme.name);
+        tmap.insert("path", theme.path);
+        ui->cmbColorScheme->addItem(theme.name, tmap);
+
+        if (themeSetting == theme.name) {
+            ui->cmbColorScheme->setCurrentIndex(ui->cmbColorScheme->count() - 1);
+        }
+    }
+
+    ui->colorSchemePreviewFrame->layout()->addWidget(m_previewEditor);
+    m_previewEditor->setTheme(Editor::themeFromName(themeSetting));
+
+    // Avoid glitch where scrollbars are appearing for a moment
+    QSize renderSize = ui->colorSchemePreviewFrame->size();
+    m_previewEditor->forceRender(renderSize);
+}
+
 void frmPreferences::saveLanguages(QSettings *s)
 {
     QString keyPrefix = "Languages/";
@@ -110,6 +181,12 @@ void frmPreferences::saveLanguages(QSettings *s)
             s->setValue(keyPrefix + prop.key(), m_langsTempSettings->value(keyPrefix + prop.key()));
         }
     }
+}
+
+void frmPreferences::saveColorScheme(QSettings *s)
+{
+    QMap<QString, QVariant> selected = ui->cmbColorScheme->currentData().toMap();
+    s->setValue("Appearance/ColorScheme", selected.value("name").toString());
 }
 
 void frmPreferences::on_buttonBox_rejected()
@@ -180,4 +257,11 @@ void frmPreferences::on_txtLanguages_TabSize_valueChanged(int value)
 void frmPreferences::on_chkLanguages_IndentWithSpaces_toggled(bool checked)
 {
     setCurrentLanguageTempValue("indentWithSpaces", checked);
+}
+
+void frmPreferences::on_cmbColorScheme_currentIndexChanged(int /*index*/)
+{
+    QMap<QString, QVariant> selected = ui->cmbColorScheme->currentData().toMap();
+    QString name = selected.value("name").toString();
+    m_previewEditor->setTheme(Editor::themeFromName(name));
 }

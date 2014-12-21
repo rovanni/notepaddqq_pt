@@ -1,10 +1,10 @@
 #include "include/docengine.h"
+#include "include/notepadqq.h"
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QTextCodec>
 #include <QCoreApplication>
 #include "include/mainwindow.h"
-#include <magic.h>
 
 DocEngine::DocEngine(QSettings *settings, TopEditorContainer *topEditorContainer, QObject *parent) :
     QObject(parent),
@@ -27,7 +27,12 @@ int DocEngine::addNewDocument(QString name, bool setFocus, EditorTabWidget *tabW
     return tab;
 }
 
-bool DocEngine::read(QFile *file, Editor* editor, QString encoding)
+bool DocEngine::read(QFile *file, Editor *editor)
+{
+    return read(file, editor, nullptr, false);
+}
+
+bool DocEngine::read(QFile *file, Editor* editor, QTextCodec *codec, bool bom)
 {
     if(!editor)
         return false;
@@ -35,28 +40,35 @@ bool DocEngine::read(QFile *file, Editor* editor, QString encoding)
     if(!file->open(QFile::ReadOnly))
         return false;
 
-    QFileInfo fi(*file);
+    DecodedText decoded;
+    if (codec == nullptr) {
+        decoded = decodeText(file->readAll());
+    } else {
+        decoded = decodeText(file->readAll(), codec, bom);
+    }
 
-    QString readEncodedAs = getFileMimeEncoding(fi.absoluteFilePath());
-    QTextStream stream(file);
-    QString txt;
+    editor->setCodec(decoded.codec);
+    editor->setBom(decoded.bom);
 
-    stream.setCodec((encoding != "") ? encoding.toUtf8() : readEncodedAs.toUtf8());
-    stream.setCodec(readEncodedAs.toUtf8());
-
-    txt = stream.readAll();
     file->close();
 
-    editor->sendMessage("C_CMD_SET_VALUE", txt);
+    if (decoded.text.indexOf("\r\n") != -1)
+        editor->setEndOfLineSequence("\r\n");
+    else if (decoded.text.indexOf("\n") != -1)
+        editor->setEndOfLineSequence("\n");
+    else if (decoded.text.indexOf("\r") != -1)
+        editor->setEndOfLineSequence("\r");
+
+    editor->setValue(decoded.text);
     editor->sendMessage("C_CMD_CLEAR_HISTORY");
-    editor->sendMessage("C_CMD_MARK_CLEAN");
+    editor->markClean();
 
     return true;
 }
 
 bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget)
 {
-    return loadDocuments(fileNames, tabWidget, false);
+    return loadDocuments(fileNames, tabWidget, false, nullptr, false);
 }
 
 bool DocEngine::loadDocument(const QUrl &fileName, EditorTabWidget *tabWidget)
@@ -68,13 +80,18 @@ bool DocEngine::loadDocument(const QUrl &fileName, EditorTabWidget *tabWidget)
 
 bool DocEngine::reloadDocument(EditorTabWidget *tabWidget, int tab)
 {
+    return reloadDocument(tabWidget, tab, nullptr, false);
+}
+
+bool DocEngine::reloadDocument(EditorTabWidget *tabWidget, int tab, QTextCodec *codec, bool bom)
+{
     Editor *editor = tabWidget->editor(tab);
     QList<QUrl> files;
     files.append(editor->fileName());
-    return loadDocuments(files, tabWidget, true);
+    return loadDocuments(files, tabWidget, true, codec, bom);
 }
 
-bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload)
+bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload, QTextCodec *codec, bool bom)
 {
     if(!fileNames.empty()) {
         m_settings->setValue("lastSelectedDir", QFileInfo(fileNames[0].toLocalFile()).absolutePath());
@@ -125,7 +142,7 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
 
                 QFile file(localFileName);
                 if (file.exists()) {
-                    if (!read(&file, editor, "UTF-8")) {
+                    if (!read(&file, editor, codec, bom)) {
                         // Handle error
                         QMessageBox msgBox;
                         msgBox.setWindowTitle(QCoreApplication::applicationName());
@@ -225,29 +242,94 @@ QPair<int, int> DocEngine::findOpenEditorByUrl(QUrl filename)
     return QPair<int, int>(-1, -1);
 }
 
+QByteArray DocEngine::getBomForCodec(QTextCodec *codec)
+{
+    QByteArray bom;
+    int tmpSize;
+    int aSize; // Size of the "a" character
+
+    QTextStream stream(&bom);
+    stream.setCodec(codec);
+    stream.setGenerateByteOrderMark(true);
+
+    // Write an 'a' so that the BOM gets written.
+    stream << "a";
+    stream.flush();
+    tmpSize = bom.size();
+
+    // Write another 'a' so that we can see how much
+    // the byte array grows and then get the size of an 'a'
+    stream << "a";
+    stream.flush();
+
+    // Get the size of the 'a' character
+    aSize = bom.size() - tmpSize;
+
+    // Resize the byte array to remove the two 'a' chars
+    bom.resize(bom.size() - 2 * aSize);
+
+    return bom;
+}
+
 bool DocEngine::write(QIODevice *io, Editor *editor)
 {
-    if(!io->open(QIODevice::WriteOnly))
+    if (!io->open(QIODevice::WriteOnly))
         return false;
 
-    QTextStream stream(io);
 
-    //Support for saving in all supported formats....
-    QString string = editor->value();
-    QTextCodec *codec = QTextCodec::codecForName("utf8");//(sci->encoding().toUtf8()); //FIXME
+    QString string = editor->value()
+            .replace("\n", editor->endOfLineSequence());
+
+    QTextCodec *codec = editor->codec();
+
     QByteArray data = codec->fromUnicode(string);
 
-    /*if(sci->BOM())
-    {
-        stream.setGenerateByteOrderMark(true);
-    }*/ // FIXME
-    stream.setCodec(codec);
+    // Some codecs always put the BOM (e.g. UTF-16BE).
+    // Others don't (e.g. UTF-8) so we have to manually
+    // write it, if the BOM is required.
+    QByteArray manualBom;
+    if (editor->bom()) {
+        // We can't write the BOM using QTextStream.setGenerateByteOrderMark(),
+        // because we would need to open the QIODevice as Text (QIODevice::Text),
+        // but if we do, QTextStream will replace any newline character with
+        // the OS representation (and we want to be free to use *whatever*
+        // line ending we want).
+        // So we generate the BOM here, and then
+        // we prepend it to the output of our QIODevice.
 
-    if(io->write(data) == -1)
+        if (codec->mibEnum() == MIB_UTF_8) { // UTF-8
+            manualBom = getBomForCodec(codec);
+        }
+    }
+
+    if (!manualBom.isEmpty() && io->write(manualBom) == -1) {
+        io->close();
         return false;
+    }
+
+    if (io->write(data) == -1) {
+        io->close();
+        return false;
+    }
+
     io->close();
 
     return true;
+}
+
+void DocEngine::reinterpretEncoding(Editor *editor, QTextCodec *codec, bool bom)
+{
+    QPair<int, int> scrollPosition = editor->scrollPosition();
+    QPair<int, int> cursorPosition = editor->cursorPosition();
+
+    QTextCodec *oldCodec = editor->codec();
+    QByteArray data = oldCodec->fromUnicode(editor->value());
+    editor->setValue(codec->toUnicode(data));
+    editor->setCodec(codec);
+    editor->setBom(bom);
+
+    editor->setScrollPosition(scrollPosition);
+    editor->setCursorPosition(cursorPosition);
 }
 
 void DocEngine::monitorDocument(const QString &fileName)
@@ -310,7 +392,7 @@ int DocEngine::saveDocument(EditorTabWidget *tabWidget, int tab, QUrl outFileNam
                 editor->setFileName(outFileName);
                 editor->setLanguageFromFileName();
             }
-            editor->sendMessage("C_CMD_MARK_CLEAN", 0);
+            editor->markClean();
             editor->setFileOnDiskChanged(false);
         }
 
@@ -344,8 +426,9 @@ void DocEngine::documentChanged(QString fileName)
         QFile file(fileName);
         EditorTabWidget *tabWidget = m_topEditorContainer->tabWidget(pos.first);
 
-        // FIXME Set editor as dirty
-        tabWidget->editor(pos.second)->setFileOnDiskChanged(true);
+        Editor *editor = tabWidget->editor(pos.second);
+        editor->markDirty();
+        editor->setFileOnDiskChanged(true);
         emit fileOnDiskChanged(tabWidget, pos.second, !file.exists());
     }
 }
@@ -372,45 +455,92 @@ bool DocEngine::isMonitored(Editor *editor)
     return m_fsWatcher->files().contains(editor->fileName().toLocalFile());
 }
 
-QPair<QString, QTextCodec *> DocEngine::decodeText(QByteArray contents)
+DocEngine::DecodedText DocEngine::decodeText(const QByteArray &contents)
 {
-    QTextCodec::ConverterState state;
-    QTextCodec *codec = QTextCodec::codecForName("UTF-8");
-    const QString text = codec->toUnicode(contents.constData(), contents.size(), &state);
-    if (state.invalidChars > 0) {
-        qDebug() << "Not a valid UTF-8 sequence.";
+    // Search for a BOM mark
+    QTextCodec *bomCodec = QTextCodec::codecForUtfText(contents, nullptr);
+    if (bomCodec != nullptr) {
+        return decodeText(contents, bomCodec, true);
     }
 
-    return QPair<QString, QTextCodec *>(text, codec);
-}
 
-QString DocEngine::getFileMimeEncoding(const QString &file)
-{
-    return getFileInformation(file, (MAGIC_ERROR|MAGIC_MIME_ENCODING));
-}
+    // FIXME Could potentially be slow on large files!!
+    //       We should try checking only the first few KB.
 
-QString DocEngine::getFileInformation(const QString &file, const int flags)
-{
-    if((!(QFile(file).exists())) && (file == "")) return "";
+    int bestInvalidChars = -1;
+    DecodedText bestDecodedText;
 
-    magic_t myt = magic_open(flags);
-    magic_load(myt,NULL);
-    QString finfo = magic_file(myt,file.toStdString().c_str());
-    magic_close(myt);
+    QList<int> alreadyTriedMibs;
 
-    // We go a different route for checking encoding
-    if ((flags & MAGIC_MIME_ENCODING)) {
-        // Don't ever return a codec we don't support, will cause crashes.
-        foreach(QByteArray codec, QTextCodec::availableCodecs()){
-            if(codec.toUpper() == finfo.toUpper()) {
-                return codec;
+    // First try with these known codecs, in order.
+    // The first one without invalid characters is good.
+    QList<QByteArray> codecStrings = QList<QByteArray>
+            ({"UTF-8", "ISO-8859-1", "Windows-1251",
+              "Shift-JIS", "Windows-1252",
+              QTextCodec::codecForLocale()->name() });
+
+    for (QByteArray codecString : codecStrings) {
+        QTextCodec::ConverterState state;
+        QTextCodec *codec = QTextCodec::codecForName(codecString);
+        if (codec == 0)
+            continue;
+
+        const QString text = codec->toUnicode(contents.constData(), contents.size(), &state);
+
+        if (state.invalidChars == 0) {
+            bestDecodedText.codec = codec;
+            bestDecodedText.text = text;
+            bestDecodedText.bom = false;
+
+            return bestDecodedText;
+
+        } else {
+            alreadyTriedMibs.append(codec->mibEnum());
+
+            if (bestInvalidChars == -1 || state.invalidChars < bestInvalidChars) {
+                bestInvalidChars = state.invalidChars;
+                bestDecodedText.codec = codec;
+                bestDecodedText.text = text;
+                bestDecodedText.bom = false;
             }
         }
-
-        return "UTF-8";
-    } else if ((flags & MAGIC_RAW)) {
-        return finfo.section(',', 0, 0);
-    } else {
-        return finfo;
     }
+
+    // If we're here, none of the codecs in codecStrings worked
+    // (and variables bestCodec & co. *are* set).
+    // We try the other codecs hoping to find the best one.
+    QList<int> mibs = QTextCodec::availableMibs();
+    for (int mib : mibs) {
+        QTextCodec *codec = QTextCodec::codecForMib(mib);
+        if (codec == 0)
+            continue;
+
+        if (alreadyTriedMibs.contains(codec->mibEnum()))
+            continue;
+
+        QTextCodec::ConverterState state;
+        const QString text = codec->toUnicode(contents.constData(), contents.size(), &state);
+
+        if (state.invalidChars < bestInvalidChars) {
+            bestInvalidChars = state.invalidChars;
+            bestDecodedText.codec = codec;
+            bestDecodedText.text = text;
+            bestDecodedText.bom = false;
+        }
+    }
+
+    return bestDecodedText;
+}
+
+DocEngine::DecodedText DocEngine::decodeText(const QByteArray &contents, QTextCodec *codec, bool contentHasBOM)
+{
+    QTextCodec::ConverterState state;
+    const QString text = codec->toUnicode(contents.constData(), contents.size(), &state);
+
+    DecodedText ret;
+    ret.bom = contentHasBOM;
+    ret.codec = codec;
+    ret.text = text;
+
+    return ret;
 }

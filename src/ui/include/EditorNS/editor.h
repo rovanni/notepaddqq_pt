@@ -7,6 +7,7 @@
 #include <QQueue>
 #include <QWheelEvent>
 #include <QVBoxLayout>
+#include <QTextCodec>
 
 namespace EditorNS
 {
@@ -74,6 +75,13 @@ namespace EditorNS
     {
         Q_OBJECT
     public:
+
+        struct Theme {
+            QString name;
+            QString path;
+        };
+
+        explicit Editor(const Theme &theme, QWidget *parent = 0);
         explicit Editor(QWidget *parent = 0);
         ~Editor();
 
@@ -81,12 +89,49 @@ namespace EditorNS
              * @brief Efficiently returns a new Editor object from an internal buffer.
              * @return
              */
-        static Editor *getNewEditor();
+        static Editor *getNewEditor(QWidget *parent = 0);
+
+        static void invalidateEditorBuffer();
 
         struct LanguageGreater {
             inline bool operator()(const QMap<QString, QString> &v1, const QMap<QString, QString> &v2) const {
                 return v1.value("name").toLower() < v2.value("name").toLower();
             }
+        };
+
+        struct Cursor {
+            int line;
+            int column;
+
+            bool operator == (const Cursor &x) const {
+                return line == x.line && column == x.column;
+            }
+
+            bool operator < (const Cursor &x) const {
+                return std::tie(line, column) < std::tie(x.line, x.column);
+            }
+
+            bool operator <= (const Cursor &x) const {
+                return *this == x || *this < x;
+            }
+
+            bool operator > (const Cursor &x) const {
+                return !(*this <= x);
+            }
+
+            bool operator >= (const Cursor &x) const {
+                return !(*this < x);
+            }
+        };
+
+        struct Selection {
+            Cursor from;
+            Cursor to;
+        };
+
+        struct IndentationMode {
+            bool useTabs;
+            int size;
         };
 
         /**
@@ -134,12 +179,37 @@ namespace EditorNS
 
         // Lower-level message wrappers:
         bool isClean();
+        void markClean();
+        void markDirty();
         QList<QMap<QString, QString> > languages();
+
+        /**
+         * @brief Set the language to use for the editor.
+         *        It automatically adjusts tab settings from
+         *        the default configuration for the specified language.
+         * @param language Language id
+         */
         void setLanguage(const QString &language);
+        QString setLanguageFromFileName(QString fileName);
         QString setLanguageFromFileName();
+        void setValue(const QString &value);
         QString value();
-        void setIndentationMode(bool useTabs, int size);
-        void setIndentationMode(QString language);
+
+        /**
+         * @brief Set custom indentation settings which may be different
+         *        from the default tab settings associated with the current
+         *        language.
+         *        If this method is called, further calls to setLanguage()
+         *        will NOT modify these tab settings. Use
+         *        clearCustomIndentationMode() to reset to default settings.
+         * @param useTabs
+         * @param size Size of an indentation. If 0, keeps the current one.
+         */
+        void setCustomIndentationMode(const bool useTabs, const int size);
+        void setCustomIndentationMode(const bool useTabs);
+        void clearCustomIndentationMode();
+        bool isUsingCustomIndentationMode() const;
+
         qreal zoomFactor() const;
         void setZoomFactor(const qreal &factor);
         void setSelectionsText(const QStringList &texts, selectMode mode);
@@ -154,6 +224,7 @@ namespace EditorNS
         QPair<int, int> cursorPosition();
         void setCursorPosition(const int line, const int column);
         void setCursorPosition(const QPair<int, int> &position);
+        void setCursorPosition(const Cursor &cursor);
 
         /**
          * @brief Get the current scroll position
@@ -162,18 +233,69 @@ namespace EditorNS
         QPair<int, int> scrollPosition();
         void setScrollPosition(const int left, const int top);
         void setScrollPosition(const QPair<int, int> &position);
+        QString endOfLineSequence() const;
+        void setEndOfLineSequence(const QString &endOfLineSequence);
+
+        QTextCodec *codec() const;
+
+        /**
+         * @brief Set the codec for this Editor.
+         *        This method does not change the in-memory or on-screen
+         *        representation of the document (which is always Unicode).
+         *        It serves solely as a way to keep track of the encoding
+         *        that needs to be used when the document gets saved.
+         * @param codec
+         */
+        void setCodec(QTextCodec *codec);
+
+        bool bom() const;
+        void setBom(bool bom);
+
+        QList<Theme> themes();
+        void setTheme(Theme theme);
+        static Editor::Theme themeFromName(QString name);
+
+        QList<Selection> selections();
+
+        /**
+         * @brief Returns the currently selected texts.
+         * @return
+         */
+        QStringList selectedTexts();
+
+        void setOverwrite(bool overwrite);
+        void forceRender(QSize size);
+        void setTabsVisible(bool visible);
+
+        /**
+         * @brief Detect the indentation mode used within the current document.
+         * @return
+         */
+        Editor::IndentationMode detectDocumentIndentation(bool *found = nullptr);
+        Editor::IndentationMode indentationMode();
+
+        QString getCurrentWord();
+
     private:
+        static QQueue<Editor*> m_editorBuffer;
         QVBoxLayout *m_layout;
         CustomQWebView *m_webView;
         JsToCppProxy *m_jsToCppProxy;
         QUrl m_fileName = QUrl();
         bool m_fileOnDiskChanged = false;
         bool m_loaded = false;
-        static QQueue<Editor*> m_editorBuffer;
+        QString m_endOfLineSequence = "\n";
+        QTextCodec *m_codec = QTextCodec::codecForName("UTF-8");
+        bool m_bom = false;
+        bool m_customIndentationMode = false;
 
         inline void waitAsyncLoad();
         QString jsStringEscape(QString str) const;
 
+        void fullConstructor(const Theme &theme);
+
+        void setIndentationMode(const bool useTabs, const int size);
+        void setIndentationMode(const QString &language);
     private slots:
         void on_javaScriptWindowObjectCleared();
         void on_proxyMessageReceived(QString msg, QVariant data);
@@ -203,6 +325,8 @@ namespace EditorNS
         void sendMessage(const QString &msg);
         QVariant sendMessageWithResult(const QString &msg, const QVariant &data);
         QVariant sendMessageWithResult(const QString &msg);
+
+        void print(QPrinter *printer);
     };
 
 }

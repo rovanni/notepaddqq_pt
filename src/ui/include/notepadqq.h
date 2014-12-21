@@ -30,8 +30,12 @@
 #include <QApplication>
 #include <QUrl>
 #include <QCommandLineParser>
+#include <QList>
+#include "include/mainwindow.h"
 
-#define POINTVERSION "0.35.0" // major.minor.revision
+#define POINTVERSION "0.41.1" // major.minor.revision
+
+#define MIB_UTF_8 106
 
 class Notepadqq
 {
@@ -42,11 +46,15 @@ public:
     static QString copyright();
     static QString editorPath();
     static QString fileNameFromUrl(const QUrl &url);
-    static void parseCommandLineParameters();
-    static QCommandLineParser *commandLineParameters();
+    static QCommandLineParser *getCommandLineArgumentsParser(const QStringList &arguments);
+
+    static bool oldQt();
+    static void setOldQt(bool oldQt);
+
+    static void showQtVersionWarning(bool showCheckBox, QWidget *parent = 0);
 
 private:
-    static QCommandLineParser *m_commandLineParameters;
+    static bool m_oldQt;
 };
 
 #endif // NOTEPADQQ_H

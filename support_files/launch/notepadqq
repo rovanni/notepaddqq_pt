@@ -1,15 +1,28 @@
 #!/bin/sh
-cd `dirname $0` > /dev/null
-SCRIPTPATH=`pwd -P`
-cd - > /dev/null
+SCRIPTPATH="$(dirname "$(readlink -f "$0")")"
 
 if [ `getconf LONG_BIT` = "64" ]
 then
-    PERSONAL_QT_LIB_PATH=~/Qt/5.3/gcc_64/lib
+    GCC_DIR=gcc_64
 else
-    PERSONAL_QT_LIB_PATH=~/Qt/5.3/gcc/lib
+    GCC_DIR=gcc
 fi
 
-export LD_LIBRARY_PATH="$PERSONAL_QT_LIB_PATH"
+OPT_QT54=/opt/Qt/5.4/$GCC_DIR/lib
+OPT_QT53=/opt/Qt/5.3/$GCC_DIR/lib
+PERSONAL_QT54=~/Qt/5.4/$GCC_DIR/lib
+PERSONAL_QT53=~/Qt/5.3/$GCC_DIR/lib
 
-exec "$SCRIPTPATH"/notepadqq-bin "$@"
+export LD_LIBRARY_PATH="$OPT_QT54:$PERSONAL_QT54:$OPT_QT53:$PERSONAL_QT53:${LD_LIBRARY_PATH}"
+
+if [ -f "$SCRIPTPATH"/../lib/notepadqq/notepadqq-bin ]; then
+    # Nqq is installed: this script is in bin/
+    exec "$SCRIPTPATH"/../lib/notepadqq/notepadqq-bin "$@"
+elif [ -f "$SCRIPTPATH"/../lib/notepadqq-bin ]; then
+    # Nqq is not installed: this script is in bin/
+    exec "$SCRIPTPATH"/../lib/notepadqq-bin "$@"
+else
+    # Nqq is installed via deb package:
+    # this script is in the same directory of the binary file.
+    exec "$SCRIPTPATH"/notepadqq-bin "$@"
+fi

@@ -22,11 +22,6 @@ public:
     explicit DocEngine(QSettings *settings, TopEditorContainer *topEditorContainer, QObject *parent = 0);
     ~DocEngine();
 
-
-
-    static QString getFileMimeEncoding(const QString &file);
-    static QString getFileInformation(const QString &file, const int flags);
-
     /**
      * @brief Saves a document to the file system.
      * @param tabWidget tabWidget where the document is
@@ -49,19 +44,62 @@ public:
     bool loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget);
     bool loadDocument(const QUrl &fileName, EditorTabWidget *tabWidget);
     bool reloadDocument(EditorTabWidget *tabWidget, int tab);
+    bool reloadDocument(EditorTabWidget *tabWidget, int tab, QTextCodec *codec, bool bom);
     int addNewDocument(QString name, bool setFocus, EditorTabWidget *tabWidget);
+    void reinterpretEncoding(Editor *editor, QTextCodec *codec, bool bom);
 private:
     QSettings *m_settings;
     TopEditorContainer *m_topEditorContainer;
     QFileSystemWatcher *m_fsWatcher;
-    bool read(QFile *file, Editor *editor, QString encoding);
+
+    /**
+     * @brief Read a file and puts the content into the provided Editor, clearing
+     *        its history and marking it as clean. Tries to automatically
+     *        detect the encoding.
+     * @param file
+     * @param editor
+     * @return true if successful, false otherwise
+     */
+    bool read(QFile *file, Editor *editor);
+    bool read(QFile *file, Editor *editor, QTextCodec *codec, bool bom);
     QPair<int, int> findOpenEditorByUrl(QUrl filename);
     // FIXME Separate from reload
-    bool loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload);
+    bool loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload, QTextCodec *codec, bool bom);
+
+    /**
+     * @brief Write the provided Editor content to the specified IO device, using
+     *        the encoding and the BOM settings specified in the Editor.
+     * @param io
+     * @param editor
+     * @return true if successful, false otherwise
+     */
     bool write(QIODevice *io, Editor *editor);
     void monitorDocument(const QString &fileName);
     void unmonitorDocument(const QString &fileName);
-    QPair<QString, QTextCodec *> decodeText(QByteArray contents);
+
+    struct DecodedText {
+        QString text;
+        QTextCodec *codec = nullptr;
+        bool bom = false;
+    };
+
+    /**
+     * @brief Decodes a byte array into a string, trying to guess the best
+     *        codec.
+     * @param contents
+     * @return
+     */
+    DecodedText decodeText(const QByteArray &contents);
+    /**
+     * @brief Decodes a byte array into a string, using the specified codec.
+     * @param contents
+     * @param codec
+     * @param contentHasBOM Simply copied to the result struct.
+     * @return
+     */
+    DecodedText decodeText(const QByteArray &contents, QTextCodec *codec, bool contentHasBOM);
+
+    QByteArray getBomForCodec(QTextCodec *codec);
 signals:
     /**
      * @brief The monitored file has changed. Remember to call

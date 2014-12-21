@@ -116,6 +116,20 @@ var Languages = new function() {
             fileExtensions: ["diff", "patch"]
         },
 
+        "django": {
+            name: "Django",
+            mode: "django",
+            mime: "text/x-django",
+            fileExtensions: []
+        },
+
+        "dockerfile": {
+            name: "Dockerfile",
+            mode: "dockerfile",
+            mime: "text/x-dockerfile",
+            fileExtensions: []
+        },
+
         "dtd": {
             name: "DTD",
             mode: "dtd",
@@ -249,6 +263,13 @@ var Languages = new function() {
             fileExtensions: ["htt"]
         },
 
+        "idl": {
+            name: "IDL",
+            mode: "idl",
+            mime: "text/x-idl",
+            fileExtensions: []
+        },
+
         "jade": {
             name: "Jade",
             mode: "jade",
@@ -337,8 +358,8 @@ var Languages = new function() {
             name: "Makefile",
             mode: "makefile",
             mime: "text/x-makefile",
-            fileExtensions: ["mak", "make", "mk", "mke", "mkg", "am"],
-            fileNames: ["Makefile", "Makefile.in", "GMakefile", "rules"]
+            fileExtensions: ["mak", "make", "mk", "mke", "mkg", "am", "pro"],
+            fileNames: ["Makefile", "Makefile.in", "GNUmakefile", "rules"]
         },
 
         "markdown-github": {
@@ -355,6 +376,13 @@ var Languages = new function() {
             fileExtensions: ["mrc"]
         },
 
+        "modelica": {
+            name: "Modelica",
+            mode: "modelica",
+            mime: "text/x-modelica",
+            fileExtensions: ["mo"]
+        },
+
         "nginx": {
             name: "Nginx",
             mode: "nginx",
@@ -367,6 +395,13 @@ var Languages = new function() {
             mode: "ntriples",
             mime: "text/n-triples",
             fileExtensions: []
+        },
+
+        "objective_c": {
+            name: "Objective C",
+            mode: "clike",
+            mime: "text/x-objectivec",
+            fileExtensions: ["m", "mm"]
         },
 
         "ocaml": {
@@ -401,7 +436,8 @@ var Languages = new function() {
             name: "Perl",
             mode: "perl",
             mime: "text/x-perl",
-            fileExtensions: ["pl", "p6", "pdl", "ph", "pm"]
+            fileExtensions: ["pl", "p6", "pdl", "ph", "pm"],
+            firstNonBlankLine: [/^#!.*\/perl($| )/, /^#!\/usr\/bin\/env perl($| )/]
         },
 
         "php": {
@@ -422,14 +458,15 @@ var Languages = new function() {
             name: "Properties files",
             mode: "properties",
             mime: "text/x-properties",
-            fileExtensions: ["properties", "desktop", "theme", "ini"]
+            fileExtensions: ["properties", "desktop", "theme", "ini", "la"]
         },
 
         "python": {
             name: "Python",
             mode: "python",
             mime: "text/x-python",
-            fileExtensions: ["py", "pyd", "pyw", "wsgi"]
+            fileExtensions: ["py", "pyd", "pyw", "wsgi"],
+            firstNonBlankLine: [/^#!.*\/python[\d\.]*($| )/, /^#!\/usr\/bin\/env python[\d\.]*($| )/]
         },
 
         "cython": {
@@ -443,7 +480,7 @@ var Languages = new function() {
             name: "Puppet",
             mode: "puppet",
             mime: "text/x-puppet",
-            fileExtensions: []
+            fileExtensions: ["pp"]
         },
 
         "r": {
@@ -458,6 +495,20 @@ var Languages = new function() {
             mode: "rst",
             mime: "text/x-rst",
             fileExtensions: ["rst"]
+        },
+
+        "rpm_changes": {
+            name: "RPM Changes",
+            mode: "rpm",
+            mime: "text/x-rpm-changes",
+            fileExtensions: []
+        },
+
+        "rpm_spec": {
+            name: "RPM Spec",
+            mode: "rpm",
+            mime: "text/x-rpm-spec",
+            fileExtensions: ["spec"]
         },
 
         "ruby": {
@@ -479,14 +530,14 @@ var Languages = new function() {
             name: "Sass",
             mode: "sass",
             mime: "text/x-sass",
-            fileExtensions: []
+            fileExtensions: ["sass"]
         },
 
         "scheme": {
             name: "Scheme",
             mode: "scheme",
             mime: "text/x-scheme",
-            fileExtensions: ["xcscheme"]
+            fileExtensions: ["xcscheme", "scm", "ss"]
         },
 
         "scss": {
@@ -500,7 +551,14 @@ var Languages = new function() {
             name: "Bash",
             mode: "shell",
             mime: "text/x-sh",
-            fileExtensions: ["sh", "shr", "shar"]
+            fileExtensions: ["sh", "shr", "shar"],
+            firstNonBlankLine: [/^#!.*\/sh($| )/, /^#!\/usr\/bin\/env sh($| )/,
+                                /^#!.*\/bash($| )/, /^#!\/usr\/bin\/env bash($| )/,
+                                /^#!.*\/ksh($| )/, /^#!\/usr\/bin\/env ksh($| )/,
+                                /^#!.*\/csh($| )/, /^#!\/usr\/bin\/env csh($| )/,
+                                /^#!.*\/tcsh($| )/, /^#!\/usr\/bin\/env tcsh($| )/,
+                                /^#!.*\/zsh($| )/, /^#!\/usr\/bin\/env zsh($| )/,
+                                /^#!.*\/fish($| )/, /^#!\/usr\/bin\/env fish($| )/]
         },
 
         "sieve": {
@@ -521,14 +579,14 @@ var Languages = new function() {
             name: "Smalltalk",
             mode: "smalltalk",
             mime: "text/x-stsrc",
-            fileExtensions: []
+            fileExtensions: ["st"]
         },
 
         "smarty": {
             name: "Smarty",
             mode: "smarty",
             mime: "text/x-smarty",
-            fileExtensions: []
+            fileExtensions: ["tpl"]
         },
 
         "smartymixed": {
@@ -549,7 +607,7 @@ var Languages = new function() {
             name: "SPARQL",
             mode: "sparql",
             mime: "application/x-sparql-query",
-            fileExtensions: []
+            fileExtensions: ["sparql"]
         },
 
         "sql": {
@@ -594,6 +652,13 @@ var Languages = new function() {
             fileExtensions: ["tcl"]
         },
 
+        "textile": {
+            name: "Textile",
+            mode: "textile",
+            mime: "text/x-textile",
+            fileExtensions: []
+        },
+
         "tiddlywiki": {
             name: "TiddlyWiki",
             mode: "tiddlywiki",
@@ -619,6 +684,13 @@ var Languages = new function() {
             name: "Turtle",
             mode: "turtle",
             mime: "text/turtle",
+            fileExtensions: ["ttl"]
+        },
+
+        "tornado": {
+            name: "Tornado",
+            mode: "tornado",
+            mime: "text/x-tornado",
             fileExtensions: []
         },
 
@@ -654,7 +726,8 @@ var Languages = new function() {
             name: "XML",
             mode: "xml",
             mime: "application/xml",
-            fileExtensions: ["xml", "svg", "wxs", "wxl", "wsdl", "rss", "atom", "rdf", "xslt", "xsl", "xul", "xbl", "mathml", "config", "plist", "xaml", "qrc"]
+            fileExtensions: ["xml", "svg", "wxs", "wxl", "wsdl", "rss", "atom", "rdf", "xslt", "xsl", "xul", "xbl", "mathml", "config", "plist", "xaml", "qrc"],
+            firstNonBlankLine: [/^<\?xml /, /^<.+?>/]
         },
 
         "xquery": {
@@ -675,25 +748,17 @@ var Languages = new function() {
             name: "Z80",
             mode: "z80",
             mime: "text/x-z80",
-            fileExtensions: []
+            fileExtensions: ["z80"]
         },
 
     }
 
-    this.languageByFileName = function(filename) {
+    this.languageByFileName = function(editor, filename) {
+
+        // Case-sensitive search for file name match
         for (var id in this.languages) { 
             if (this.languages.hasOwnProperty(id)) {
                 var lang = this.languages[id];
-                
-                // Case-insensitive search for extension match
-                if (lang.fileExtensions !== undefined) {
-                    for (var i = 0; i < lang.fileExtensions.length; i++) {
-                        if (endsWith(filename.toLowerCase(), "." + lang.fileExtensions[i].toLowerCase()))
-                            return id;
-                    }
-                }
-                
-                // Case-sensitive search for file name match
                 if (lang.fileNames !== undefined) {
                     for (var i = 0; i < lang.fileNames.length; i++) {
                         if (filename === lang.fileNames[i] || endsWith(filename, "/" + lang.fileNames[i]) || endsWith(filename, "\\" + lang.fileNames[i]))
@@ -703,10 +768,52 @@ var Languages = new function() {
             }
         }
 
+        // Case-insensitive search for extension match
+        for (var id in this.languages) { 
+            if (this.languages.hasOwnProperty(id)) {
+                var lang = this.languages[id];
+                if (lang.fileExtensions !== undefined) {
+                    for (var i = 0; i < lang.fileExtensions.length; i++) {
+                        if (endsWith(filename.toLowerCase(), "." + lang.fileExtensions[i].toLowerCase()))
+                            return id;
+                    }
+                }
+            }
+        }
+
+        // First non blank line match
+        for (var id in this.languages) { 
+            if (this.languages.hasOwnProperty(id)) {
+                var lang = this.languages[id];
+                if (lang.firstNonBlankLine !== undefined &&
+                    editor !== undefined && editor !== null) {
+
+                    // Find the first non blank line
+                    var lineCount = editor.lineCount();
+                    var line = null;
+                    for (var i = 0; i < lineCount && line === null; i++) {
+                        var iLine = editor.getLine(i);
+                        if (iLine.trim() !== "")
+                            line = iLine;
+                    }
+
+                    if (line !== null) {
+                        for (var i = 0; i < lang.firstNonBlankLine.length; i++) {
+                            if (line.match(lang.firstNonBlankLine[i]))
+                                return id;
+                        }
+                    }
+                }
+            }
+        }
+
         return "plaintext";
     }
     
     this.setLanguage = function(editor, languageId) {
+        if (languageId === "" || this.languages[languageId] === undefined)
+            languageId = "plaintext";
+
         var lang = this.languages[languageId];
         if (lang.mime !== undefined && lang.mime !== null && lang.mime !== "")
             editor.setOption("mode", lang.mime);

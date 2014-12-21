@@ -1,19 +1,17 @@
 #include "include/mainwindow.h"
 #include "include/notepadqq.h"
 #include "include/EditorNS/editor.h"
+#include "include/singleapplication.h"
 #include <QObject>
 #include <QFile>
-#include <QDir>
-#include <QApplication>
-#include <QMessageBox>
 #include <QSettings>
-#include <QCommandLineParser>
 
 #ifdef QT_DEBUG
 #include <QElapsedTimer>
 #endif
 
-void checkQtVersion(MainWindow *w);
+void checkQtVersion();
+void forceDefaultSettings();
 
 int main(int argc, char *argv[])
 {
@@ -23,13 +21,48 @@ int main(int argc, char *argv[])
     qDebug() << "Start-time benchmark started.";
 #endif
 
-    QApplication a(argc, argv);
+    SingleApplication a(argc, argv);
 
     QCoreApplication::setOrganizationName("Notepadqq");
     QCoreApplication::setApplicationName("Notepadqq");
     QCoreApplication::setApplicationVersion(Notepadqq::version);
 
-    Notepadqq::parseCommandLineParameters();
+    forceDefaultSettings();
+
+    // Check for "run-and-exit" options like -h or -v
+    QCommandLineParser *parser = Notepadqq::getCommandLineArgumentsParser(QApplication::arguments());
+    delete parser;
+
+    if (a.attachToOtherInstance()) {
+        return EXIT_SUCCESS;
+    }
+
+    // Arguments received from another instance
+    QObject::connect(&a, &SingleApplication::receivedArguments, &a, [=](const QString &workingDirectory, const QStringList &arguments) {
+        QCommandLineParser *parser = Notepadqq::getCommandLineArgumentsParser(arguments);
+        if (parser->isSet("new-window")) {
+            // Open a new window
+            MainWindow *win = new MainWindow(workingDirectory, arguments, 0);
+            win->show();
+        } else {
+            // Send the args to the last focused window
+            MainWindow *win = MainWindow::lastActiveInstance();
+            if (win != nullptr) {
+                win->openCommandLineProvidedUrls(workingDirectory, arguments);
+
+                // Activate the window
+                win->setWindowState((win->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+                win->raise();
+                win->show();
+                win->activateWindow();
+            }
+        }
+
+        delete parser;
+    });
+
+    // There are no other instances: start a new server.
+    a.startServer();
 
     Editor::addEditorToBuffer();
 
@@ -40,64 +73,49 @@ int main(int argc, char *argv[])
     }
     file.close();
 
-    MainWindow w;
-    w.show();
+    checkQtVersion();
+
+    MainWindow *w = new MainWindow(QApplication::arguments(), 0);
+    w->show();
 
 #ifdef QT_DEBUG
     qint64 __aet_elapsed = __aet_timer.nsecsElapsed();
     qDebug() << QString("Started in " + QString::number(__aet_elapsed / 1000 / 1000) + "msec").toStdString().c_str();
 #endif
 
-    QSettings *settings = new QSettings();
-    if (settings->value("checkQtVersionAtStartup", true).toBool())
-        checkQtVersion(&w);
+    QSettings settings;
+    if (Notepadqq::oldQt() && settings.value("checkQtVersionAtStartup", true).toBool()) {
+        Notepadqq::showQtVersionWarning(true, w);
+    }
 
     return a.exec();
 }
 
-void checkQtVersion(MainWindow *w)
+void checkQtVersion()
 {
     QString runtimeVersion = qVersion();
     if (runtimeVersion.startsWith("5.0") ||
             runtimeVersion.startsWith("5.1") ||
             runtimeVersion.startsWith("5.2")) {
 
-        QString dir = QDir::toNativeSeparators(QDir::homePath() + "/Qt");
-
-        QMessageBox msgBox(w);
-        msgBox.setWindowTitle(QCoreApplication::applicationName());
-        msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setText("<h3>" + QObject::tr("You're using an old version of Qt (%1)").arg(qVersion()) + "</h3>");
-        msgBox.setInformativeText("<html><body>"
-            "<p>" + QObject::tr("Notepadqq will try to do its best, but some things will not work properly.") + "</p>" +
-            QObject::tr(
-                "Install a newer Qt version (&ge; %1) from the official repositories "
-                "of your distribution.<br><br>"
-                "If it's not available, download Qt (&ge; %1) from %2 and install it to %3.").
-                      arg("5.3").
-                      arg("<nobr><a href=\"http://qt-project.org/\">http://qt-project.org/</a></nobr>").
-                      arg("<nobr>" + dir + "</nobr>") +
-            "</body></html>");
-
-        msgBox.exec();
+        Notepadqq::setOldQt(true);
     }
 }
 
-void displayHelp()
+void forceDefaultSettings()
 {
-    printf("\n"
-           "notepadqq    a Notepad++ clone\n\n"
-           "Text editor with support for multiple programming languages,\n"
-           "multiple encodings and plugin support.\n\n"
-           "Usage:\n"
-           "  notepadqq\n"
-           "  notepadqq [-h|--help]\n"
-           "  notepadqq [-v|--version]\n"
-           "  notepadqq [file1 file2 ...]\n\n"
-          );
-}
+    QSettings settings;
 
-void displayVersion()
-{
-    printf("%s\n", Notepadqq::version.toStdString().c_str());
+    // Use tabs to indent makefile by default
+    if (!settings.contains("Languages/makefile/useDefaultSettings")) {
+        settings.setValue("Languages/makefile/useDefaultSettings", false);
+        settings.setValue("Languages/makefile/indentWithSpaces", false);
+    }
+
+    // Convert old "colorScheme" to new "Appearance/ColorScheme"
+    // TODO Remove me after a few months from 2014-dec-01.
+    if (!settings.contains("Appearance/ColorScheme") && settings.contains("colorScheme")) {
+        settings.setValue("Appearance/ColorScheme", settings.value("colorScheme"));
+        settings.remove("colorScheme");
+    }
 }

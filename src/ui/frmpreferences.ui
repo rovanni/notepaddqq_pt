@@ -44,7 +44,17 @@
    </item>
    <item>
     <property name="text">
+     <string>Appearance</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
      <string>Languages</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>Search</string>
     </property>
    </item>
   </widget>
@@ -58,7 +68,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>1</number>
+    <number>0</number>
    </property>
    <widget class="QWidget" name="page">
     <widget class="QCheckBox" name="chkCheckQtVersionAtStartup">
@@ -73,6 +83,105 @@
      <property name="text">
       <string>Check Qt version at startup</string>
      </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="page_3">
+    <widget class="QLabel" name="label_3">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>70</y>
+       <width>261</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Preview</string>
+     </property>
+    </widget>
+    <widget class="QFrame" name="colorSchemePreviewFrame">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>90</y>
+       <width>431</width>
+       <height>211</height>
+      </rect>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Plain</enum>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="verticalLayoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>10</y>
+       <width>431</width>
+       <height>51</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <property name="spacing">
+         <number>8</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_2">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Color scheme:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="cmbColorScheme"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
     </widget>
    </widget>
    <widget class="QWidget" name="page_2">
@@ -145,6 +254,12 @@
         <height>27</height>
        </rect>
       </property>
+      <property name="minimum">
+       <number>2</number>
+      </property>
+      <property name="maximum">
+       <number>50</number>
+      </property>
      </widget>
     </widget>
     <widget class="QComboBox" name="cmbLanguages">
@@ -155,6 +270,21 @@
        <width>431</width>
        <height>27</height>
       </rect>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="page_4">
+    <widget class="QCheckBox" name="chkSearch_SearchAsIType">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>10</y>
+       <width>341</width>
+       <height>22</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Search as I type</string>
      </property>
     </widget>
    </widget>

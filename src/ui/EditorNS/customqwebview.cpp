@@ -84,4 +84,15 @@ namespace EditorNS
                 .replace("\b", "\\b");
     }
 
+    void CustomQWebView::keyPressEvent(QKeyEvent *ev)
+    {
+        switch (ev->key()) {
+        case Qt::Key_Insert:
+            ev->ignore();
+            break;
+        default:
+            QWebView::keyPressEvent(ev);
+        }
+    }
+
 }
