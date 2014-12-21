@@ -91,7 +91,7 @@ namespace EditorNS
             ev->ignore();
             break;
         default:
-            QWebView::keyPressEvent(ev);
+            WEBVIEWNAME::keyPressEvent(ev);
         }
     }
 

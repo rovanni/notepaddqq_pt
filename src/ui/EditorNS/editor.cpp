@@ -609,6 +609,7 @@ namespace EditorNS
 
     void Editor::forceRender(QSize size)
     {
+#ifndef USE_QTWEBENGINE
         QWebPage *page = m_webView->page();
 
         page->setViewportSize(size);
@@ -617,6 +618,7 @@ namespace EditorNS
         QPainter painter(&image);
 
         page->mainFrame()->render(&painter);
+#endif
     }
 
     void Editor::setTabsVisible(bool visible)
@@ -647,7 +649,7 @@ namespace EditorNS
     void Editor::print(QPrinter *printer)
     {
         sendMessage("C_CMD_DISPLAY_PRINT_STYLE");
-        m_webView->print(printer);
+        //m_webView->print(printer); // FIXME
         sendMessage("C_CMD_DISPLAY_NORMAL_STYLE");
     }
 
