@@ -31,9 +31,13 @@ var UiDriver = new function() {
     var handlers = [];
 
     var socket;
-    var cpp_ui_driver;
+    var channel;
 
     var msgQueue = [];
+
+    function usingQtWebChannel() {
+        return (typeof cpp_ui_driver === 'undefined')
+    }
 
     this.connectSocket = function(url) {
         var _this = this;
@@ -50,8 +54,8 @@ var UiDriver = new function() {
         };
         socket.onopen = function()
         {
-            new QWebChannel(socket, function(channel) {
-                cpp_ui_driver = channel.objects.cpp_ui_driver;
+            new QWebChannel(socket, function(_channel) {
+                channel = _channel;
 
                 // Send the messages in the queue
                 for (var i = 0; i < msgQueue.length; i++) {
@@ -62,16 +66,24 @@ var UiDriver = new function() {
     }
 
     this.sendMessage = function(msg, data) {
-        if (cpp_ui_driver === undefined) {
-            // Communication with the C++ part is not yet completed.
-            msgQueue.push([msg, data]);
-            return;
-        }
+        if (usingQtWebChannel()) {
+            // QtWebEngine
 
-        if (data !== null && data !== undefined) {
-            cpp_ui_driver.receiveMessage(msg, data);
+            if (cpp_ui_driver === undefined) {
+                // Communication with the C++ part is not yet completed.
+                msgQueue.push([msg, data]);
+                return;
+            }
+
+            if (data !== null && data !== undefined) {
+                channel.objects.cpp_ui_driver.receiveMessage(msg, data);
+            } else {
+                channel.objects.cpp_ui_driver.receiveMessage(msg, "");
+            }
+
         } else {
-            cpp_ui_driver.receiveMessage(msg, "");
+            // QtWebKit
+            cpp_ui_driver.receiveMessage(msg, data);
         }
     }
 
@@ -83,7 +95,11 @@ var UiDriver = new function() {
     }
 
     this.messageReceived = function(msg) {
-        var data = cpp_ui_driver.getMsgData();
+        var data;
+        if (usingQtWebChannel())
+            data = channel.objects.cpp_ui_driver.getMsgData();
+        else
+            data = cpp_ui_driver.getMsgData();
 
         // Only one of the handlers (the last that gets
         // called) can return a value. So, to each handler
