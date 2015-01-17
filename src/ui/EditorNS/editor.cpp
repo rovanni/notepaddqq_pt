@@ -111,9 +111,6 @@ namespace EditorNS
 
     Editor *Editor::getNewEditor(QWidget *parent)
     {
-#ifdef USE_QTWEBENGINE
-        return new Editor(parent);
-#else
         Editor *out;
 
         if (m_editorBuffer.length() == 0) {
@@ -128,15 +125,12 @@ namespace EditorNS
 
         out->setParent(parent);
         return out;
-#endif
     }
 
     void Editor::addEditorToBuffer(const int howMany)
     {
-#ifndef USE_QTWEBENGINE
         for (int i = 0; i < howMany; i++)
             m_editorBuffer.enqueue(new Editor());
-#endif
     }
 
     void Editor::invalidateEditorBuffer()
