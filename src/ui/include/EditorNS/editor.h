@@ -8,6 +8,7 @@
 #include <QWheelEvent>
 #include <QVBoxLayout>
 #include <QTextCodec>
+#include <QPrinter>
 
 namespace EditorNS
 {
@@ -44,7 +45,14 @@ namespace EditorNS
         Q_INVOKABLE QVariant getMsgData() { return m_msgData; }
 
     public slots:
+        /**
+             * @brief A JavaScript message has been received.
+             *        This method must be called from the js side.
+             * @param msg Message type
+             * @param data Message data
+             */
         Q_INVOKABLE void receiveMessage(QString msg, QVariant data) {
+            // FIXME {obj} data types don't get passed from js to cpp
             emit messageReceived(msg, data);
         }
 

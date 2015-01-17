@@ -1,9 +1,14 @@
 #include "include/EditorNS/customqwebview.h"
 #include "include/EditorNS/websocketclientwrapper.h"
-#include <QtWebChannel/QWebChannel>
 #include <QEventLoop>
-#include <QtWebSockets/QWebSocketServer>
-#include <QWebFrame>
+#include <QBuffer>
+
+#ifdef USE_QTWEBENGINE
+    #include <QtWebChannel/QWebChannel>
+    #include <QtWebSockets/QWebSocketServer>
+#else
+    #include <QWebFrame>
+#endif
 
 namespace EditorNS
 {
@@ -23,19 +28,41 @@ namespace EditorNS
     QVariant CustomQWebView::evaluateJavaScript(QString expr)
     {
 #ifdef USE_QTWEBENGINE
-        QEventLoop loop;
-        connect(this, &CustomQWebView::JavascriptEvaluated, &loop, &QEventLoop::quit);
 
-        QVariant data;
-        page()->runJavaScript(expr, [&](const QVariant &result) {
-            data = result;
+        if (expr.startsWith("UiDriver.connectSocket(")) {
+            // Special case: CustomQWebView::JavascriptEvaluated doesn't get fired when connecting socket.
+            page()->runJavaScript(expr);
             emit JavascriptEvaluated();
-        });
+            return QVariant();
+        } else {
 
-        // FIXME!! It never exits from the event loop
-        loop.exec();
+            QEventLoop loop;
+            connect(this, &CustomQWebView::JavascriptEvaluated, &loop, &QEventLoop::quit);
 
-        return data;
+            QByteArray byteArray;
+
+            page()->runJavaScript(expr, [&](const QVariant &result) {
+                // Serialize result to byteArray
+                QBuffer writeBuffer(&byteArray);
+                writeBuffer.open(QIODevice::WriteOnly);
+                QDataStream out(&writeBuffer);
+                out << result;
+                writeBuffer.close();
+
+                emit JavascriptEvaluated();
+            });
+
+            loop.exec();
+
+            // Deserialize result
+            QBuffer readBuffer(&byteArray);
+            readBuffer.open(QIODevice::ReadOnly);
+            QDataStream in(&readBuffer);
+            QVariant data;
+            in >> data;
+
+            return data;
+        }
 #else
         return page()->mainFrame()->evaluateJavaScript(expr);
 #endif
@@ -44,30 +71,27 @@ namespace EditorNS
     void CustomQWebView::connectJavaScriptObject(QString name, QObject *obj)
     {
 #ifdef USE_QTWEBENGINE
-        // FIXME Tutte le free del caso (settare parent)
         // FIXME Spostare l'inizializzazione del socket nel costruttore!! Qui deve rimanere solo la riga registerObject. Ma anche no: l'inizializzazione deve essere fatta solo quando è documentReady
 
         // setup the QWebSocketServer
-        QWebSocketServer *server = new QWebSocketServer(QStringLiteral("QWebChannel Standalone Example Server"), QWebSocketServer::NonSecureMode);
+        QWebSocketServer *server = new QWebSocketServer(QStringLiteral("QWebChannel Notepadqq Server"), QWebSocketServer::NonSecureMode, this);
         if (!server->listen(QHostAddress::LocalHost, 0)) {
             qFatal("Failed to open web socket server.");
             return; // FIXME Return error
         }
 
-        //qDebug() << server.serverUrl().toString();
-
         // wrap WebSocket clients in QWebChannelAbstractTransport objects
-        WebSocketClientWrapper *clientWrapper = new WebSocketClientWrapper(server);
+        WebSocketClientWrapper *clientWrapper = new WebSocketClientWrapper(server, this);
 
         // setup the channel
-        QWebChannel *channel = new QWebChannel();
+        QWebChannel *channel = new QWebChannel(this);
         QObject::connect(clientWrapper, &WebSocketClientWrapper::clientConnected,
                          channel, &QWebChannel::connectTo);
 
         // setup the dialog and publish it to the QWebChannel
         channel->registerObject(name, obj);
 
-        evaluateJavaScript("connectSocket('" + jsStringEscape(server->serverUrl().toString()) + "')");
+        evaluateJavaScript("UiDriver.connectSocket('" + jsStringEscape(server->serverUrl().toString()) + "')");
 #else
         page()->mainFrame()->
                 addToJavaScriptWindowObject(name, obj);

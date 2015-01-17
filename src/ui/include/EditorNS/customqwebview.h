@@ -1,13 +1,13 @@
 #ifndef CUSTOMQWEBVIEW_H
 #define CUSTOMQWEBVIEW_H
 
-#include <QWebView>
 #include <QWheelEvent>
 
 #ifdef USE_QTWEBENGINE
     #include <QWebEngineView>
     #define WEBVIEWNAME QWebEngineView
 #else
+    #include <QWebView>
     #define WEBVIEWNAME QWebView
 #endif
 

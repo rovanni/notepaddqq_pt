@@ -1,6 +1,5 @@
 #include "include/EditorNS/editor.h"
 #include "include/notepadqq.h"
-#include <QWebFrame>
 #include <QVBoxLayout>
 #include <QMessageBox>
 #include <QDir>
@@ -11,6 +10,8 @@
 #ifdef USE_QTWEBENGINE
     #include <QWebEngineSettings>
     #include <QtWebChannel/QWebChannel>
+#else
+    #include <QWebFrame>
 #endif
 
 namespace EditorNS

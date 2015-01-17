@@ -1,6 +1,6 @@
 /*
 
-	         Synchronization with QtWebEngine
+             Synchronization with QtWebEngine
 
   [JS]               [QtWebEngine]                [C++]
    |                       |                        |
@@ -14,7 +14,7 @@ Editor is ready.           |                   Editor is ready.
    -                       -                        -
 
 
-	         Synchronization with QtWebKit
+             Synchronization with QtWebKit
 
   [JS]                 [QtWebKit]                 [C++]
    |                       |                        |
@@ -24,55 +24,65 @@ J_EVT_READY ---------------|----------------------->|
 Editor is ready.           |                   Editor is ready.
    |                       |                        |
    -                       -                        -
-   
+
 */
-
-// FIXME Tutta questa roba deve stare nell'UI-DRIVER!!
-var socket;
-var cpp_ui_driver;
-
-function connectSocket(url) {
-	socket = new WebSocket(url);
-	socket.onclose = function()
-	{
-		console.error("web channel closed");
-	};
-	socket.onerror = function(error)
-	{
-		console.error("web channel error: " + error);
-		console.error(error);
-	};
-	socket.onopen = function()
-	{
-		console.log("WebSocket connected, setting up QWebChannel.");
-		console.error("AAAAAAAAAAAAA" + url);
-		new QWebChannel(socket, function(channel) {
-			cpp_ui_driver = channel.objects.cpp_ui_driver;
-			cpp_ui_driver.receiveMessage("J_EVT_READY", null); // FIXME Use UiDriver..
-		});
-	}
-	return true;
-}
-
-console.error("REGISTERED!!!!!");
 
 var UiDriver = new function() {
     var handlers = [];
 
+    var socket;
+    var cpp_ui_driver;
+
+    var msgQueue = [];
+
+    this.connectSocket = function(url) {
+        var _this = this;
+
+        socket = new WebSocket(url);
+        socket.onclose = function()
+        {
+            console.error("web channel closed");
+        };
+        socket.onerror = function(error)
+        {
+            console.error("web channel error: " + error);
+            console.error(error);
+        };
+        socket.onopen = function()
+        {
+            new QWebChannel(socket, function(channel) {
+                cpp_ui_driver = channel.objects.cpp_ui_driver;
+
+                // Send the messages in the queue
+                for (var i = 0; i < msgQueue.length; i++) {
+                    _this.sendMessage(msgQueue[i][0], msgQueue[i][1]);
+                }
+            });
+        }
+    }
+
     this.sendMessage = function(msg, data) {
-		console.error("*********** Wanted to send " + msg);
-	    //cpp_ui_driver.messageReceived(msg, data); // FIXME Fare coda dei messaggi in attesa?
+        if (cpp_ui_driver === undefined) {
+            // Communication with the C++ part is not yet completed.
+            msgQueue.push([msg, data]);
+            return;
+        }
+
+        if (data !== null && data !== undefined) {
+            cpp_ui_driver.receiveMessage(msg, data);
+        } else {
+            cpp_ui_driver.receiveMessage(msg, "");
+        }
     }
 
     this.registerEventHandler = function(msg, handler) {
         if (handlers[msg] === undefined)
-		    handlers[msg] = [];
+            handlers[msg] = [];
 
-	    handlers[msg].push(handler);
+        handlers[msg].push(handler);
     }
 
     this.messageReceived = function(msg) {
-		console.error("*********** Received " + msg);
         var data = cpp_ui_driver.getMsgData();
 
         // Only one of the handlers (the last that gets
