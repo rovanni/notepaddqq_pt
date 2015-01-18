@@ -69,7 +69,7 @@ var UiDriver = new function() {
         if (usingQtWebChannel()) {
             // QtWebEngine
 
-            if (cpp_ui_driver === undefined) {
+            if (channel === undefined) {
                 // Communication with the C++ part is not yet completed.
                 msgQueue.push([msg, data]);
                 return;
