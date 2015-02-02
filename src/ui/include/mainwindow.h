@@ -10,6 +10,7 @@
 #include "frmsearchreplace.h"
 #include <functional>
 #include "QtPrintSupport/QPrinter"
+#include <QStandardItemModel>
 
 namespace Ui {
 class MainWindow;
@@ -137,6 +138,7 @@ private slots:
     void on_actionReload_file_interpreted_as_triggered();
     void on_actionInterpret_as_triggered();
     void on_actionPrint_triggered();
+    void on_actionPrint_Now_triggered();
     void on_actionLaunch_in_Firefox_triggered();
     void on_actionLaunch_in_Chromium_triggered();
     void on_actionLaunch_in_Chrome_triggered();
@@ -149,6 +151,9 @@ private slots:
     void on_actionOpen_file_triggered();
     void on_actionOpen_in_another_window_triggered();
     void on_tabBarDoubleClicked(EditorTabWidget *tabWidget, int tab);
+    void on_filesFindResultsModelRowsInserted(const QModelIndex &parent, int first, int last);
+    void on_actionFind_in_Files_triggered();
+
 private:
     static QList<MainWindow*> m_instances;
     Ui::MainWindow*     ui;
@@ -166,6 +171,7 @@ private:
     QSettings*          m_settings;
     frmSearchReplace*   m_frmSearchReplace = 0;
     bool                m_overwrite = false; // Overwrite mode vs Insert mode
+    QStandardItemModel* m_filesFindResultsModel;
 
     void                removeTabWidgetIfEmpty(EditorTabWidget *tabWidget);
     void                createStatusBar();
@@ -214,6 +220,11 @@ private:
     QString             currentWordOrSelection();
     void                currentWordOnlineSearch(const QString &searchUrl);
     QString             getNewDocumentName();
+
+    /**
+     * @brief Workaround for this bug: https://bugs.launchpad.net/ubuntu/+source/appmenu-qt5/+bug/1313248
+     */
+    void                fixKeyboardShortcuts();
 };
 
 #endif // MAINWINDOW_H

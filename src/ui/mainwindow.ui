@@ -129,10 +129,11 @@
      <string>&amp;Search</string>
     </property>
     <addaction name="actionSearch"/>
-    <addaction name="actionReplace"/>
-    <addaction name="separator"/>
+    <addaction name="actionFind_in_Files"/>
     <addaction name="actionFind_Next"/>
     <addaction name="actionFind_Previous"/>
+    <addaction name="separator"/>
+    <addaction name="actionReplace"/>
    </widget>
    <widget class="QMenu" name="menu_View">
     <property name="title">
@@ -302,6 +303,40 @@
    <addaction name="actionSave_Currently_Recorded_Macro"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QDockWidget" name="dockFileSearchResults">
+   <property name="windowTitle">
+    <string>Find result</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_3">
+    <layout class="QVBoxLayout" name="verticalLayout_3">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QTreeView" name="treeFileSearchResults">
+       <property name="editTriggers">
+        <set>QAbstractItemView::NoEditTriggers</set>
+       </property>
+       <attribute name="headerVisible">
+        <bool>false</bool>
+       </attribute>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
   <action name="action_Open">
    <property name="text">
     <string>&amp;Open...</string>
@@ -862,6 +897,14 @@
   <action name="actionOpen_a_New_Window">
    <property name="text">
     <string>Open a New Window</string>
+   </property>
+  </action>
+  <action name="actionFind_in_Files">
+   <property name="text">
+    <string>Find in Files...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+F</string>
    </property>
   </action>
  </widget>

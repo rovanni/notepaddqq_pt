@@ -4,10 +4,14 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QSettings>
+#include <QDirIterator>
+#include <QFileDialog>
 
-frmSearchReplace::frmSearchReplace(TopEditorContainer *topEditorContainer, QWidget *parent) :
+frmSearchReplace::frmSearchReplace(TopEditorContainer *topEditorContainer, QStandardItemModel *filesFindResultsModel, QWidget *parent) :
     QMainWindow(parent),
-    ui(new Ui::frmSearchReplace), m_topEditorContainer(topEditorContainer)
+    ui(new Ui::frmSearchReplace),
+    m_topEditorContainer(topEditorContainer),
+    m_filesFindResultsModel(filesFindResultsModel)
 {
     ui->setupUi(this);
 
@@ -20,16 +24,35 @@ frmSearchReplace::frmSearchReplace(TopEditorContainer *topEditorContainer, QWidg
         rect().center());
 
     connect(ui->cmbSearch->lineEdit(), &QLineEdit::textEdited, this, &frmSearchReplace::on_searchStringEdited);
-    connect(ui->cmbSearch->lineEdit(), &QLineEdit::returnPressed, this, &frmSearchReplace::on_btnFindNext_clicked);
+    connect(ui->cmbSearch->lineEdit(), &QLineEdit::returnPressed, this, [=]() {
+        if (ui->actionFind_in_files->isChecked()) {
+            on_btnFindAll_clicked();
+        } else {
+            on_btnFindNext_clicked();
+        }
+    });
     connect(ui->cmbReplace->lineEdit(), &QLineEdit::returnPressed, this, &frmSearchReplace::on_btnReplaceNext_clicked);
+    connect(ui->cmbLookIn->lineEdit(), &QLineEdit::returnPressed, this, &frmSearchReplace::on_btnFindAll_clicked);
+
+    ui->cmbFilter->lineEdit()->setPlaceholderText("*.ext1, *.ext2, ...");
 
     ui->actionFind->setIcon(IconProvider::fromTheme("edit-find"));
     ui->actionReplace->setIcon(IconProvider::fromTheme("edit-find-replace"));
 
+    QActionGroup *tabGroup = new QActionGroup(this);
+    tabGroup->addAction(ui->actionFind);
+    tabGroup->addAction(ui->actionReplace);
+    tabGroup->addAction(ui->actionFind_in_files);
+    tabGroup->setExclusive(true);
+
+    // Initialize all the tabs
     ui->actionFind->setChecked(true);
-    ui->actionReplace->toggled(false);
-    ui->actionFind->toggled(true);
+    ui->actionReplace->setChecked(true);
+    ui->actionFind_in_files->setChecked(true);
+
     ui->chkShowAdvanced->toggled(ui->chkShowAdvanced->isChecked());
+
+    setCurrentTab(TabSearch);
 }
 
 frmSearchReplace::~frmSearchReplace()
@@ -55,6 +78,7 @@ void frmSearchReplace::show(Tabs defaultTab)
     ui->cmbSearch->setFocus();
     ui->cmbSearch->lineEdit()->selectAll();
     QMainWindow::show();
+    manualSizeAdjust();
 }
 
 void frmSearchReplace::setCurrentTab(Tabs tab)
@@ -63,6 +87,8 @@ void frmSearchReplace::setCurrentTab(Tabs tab)
         ui->actionFind->setChecked(true);
     } else if (tab == TabReplace) {
         ui->actionReplace->setChecked(true);
+    } else if (tab == TabSearchInFiles) {
+        ui->actionFind_in_files->setChecked(true);
     }
 }
 
@@ -74,7 +100,7 @@ Editor *frmSearchReplace::currentEditor()
 QString frmSearchReplace::plainTextToRegex(QString text, bool matchWholeWord)
 {
     // Transform it into a regex, but make sure to escape special chars
-    QString regex = QRegExp::escape(text);
+    QString regex = QRegularExpression::escape(text);
 
     if (matchWholeWord)
         regex = "\\b" + regex + "\\b";
@@ -166,6 +192,117 @@ int frmSearchReplace::selectAll(QString string, SearchMode searchMode, SearchOpt
     data.append(regexModifiersFromSearchOptions(searchOptions));
     QVariant count = currentEditor()->sendMessageWithResult("C_FUN_SEARCH_SELECT_ALL", QVariant::fromValue(data));
     return count.toInt();
+}
+
+void frmSearchReplace::searchInFiles(QString string, QString path, QStringList filters, SearchMode searchMode, SearchOptions searchOptions)
+{
+    if (!string.isEmpty()) {
+        // Regex used to detect newlines
+        QRegularExpression newLine("\n|\r\n|\r");
+        // Search string converted to a regex
+        QString rawSearch = rawSearchString(string, searchMode, searchOptions);
+
+        QFlags<QRegularExpression::PatternOption> options = QRegularExpression::NoPatternOption;
+        if (searchOptions.MatchCase == false) {
+            options |= QRegularExpression::CaseInsensitiveOption;
+        }
+
+        QRegularExpression regex(rawSearch, options);
+
+        // Row, in the model, relative to this search
+        QList<QStandardItem *> searchRow;
+        searchRow << new QStandardItem();
+
+        QFlags<QDirIterator::IteratorFlag> dirIteratorOptions = QDirIterator::NoIteratorFlags;
+        if (ui->chkIncludeSubdirs->isChecked()) {
+            dirIteratorOptions |= QDirIterator::Subdirectories | QDirIterator::FollowSymlinks;
+        }
+
+        // Iterator used to find files in the specified directory
+        QDirIterator it(path, filters, QDir::Files | QDir::Readable | QDir::Hidden, dirIteratorOptions);
+
+        // Total number of matches in all the files
+        int totalFileMatches = 0;
+        // Number of files that contain matches
+        int totalFiles = 0;
+
+        while (it.hasNext()) {
+            QString fileName = it.next();
+
+            // Number of matches in the current file
+            int curFileMatches = 0;
+
+            // Read the file into a string.
+            // There is no manual decoding: we assume that the files are Unicode.
+            QFile f(fileName);
+            if (!f.open(QFile::ReadOnly | QFile::Text)) continue;
+            QTextStream in(&f);
+            QString content = in.readAll();
+
+            // Row, in the model, relative to this file
+            QList<QStandardItem *> fileRow;
+            fileRow << new QStandardItem();
+
+            // Run the search
+            QRegularExpressionMatchIterator i = regex.globalMatch(content);
+            while (i.hasNext())
+            {
+                QRegularExpressionMatch match = i.next();
+                QStringList matches = match.capturedTexts();
+
+                if (!matches[0].isEmpty()) {
+                    // Position (from byte 0) of the start of the found word
+                    int capturedPosStart = match.capturedStart();
+
+                    // Position (from byte 0) of the end of the found word
+                    //int capturedPosEnd = match.capturedEnd(match.lastCapturedIndex());
+
+                    // Position (from byte 0) of the start of the first line of the found word
+                    int linePosStart = content.lastIndexOf(newLine, capturedPosStart) + 1;
+
+                    // Position (from byte 0) of the end of the first line of the found word
+                    int linePosEnd = content.indexOf(newLine, capturedPosStart);
+
+                    // Content of the first line of the found word
+                    QString wholeLine = content.mid(linePosStart, linePosEnd - linePosStart);
+
+                    // Number of the first line of the found word
+                    int count1 = content.leftRef(linePosStart).count("\r\n");
+                    int count2 = content.leftRef(linePosStart).count("\r");
+                    int count3 = content.leftRef(linePosStart).count("\n");
+                    int wholeLineNumber = qMax(count1, qMax(count2, count3));
+
+                    // Position (from the start of the line) of the start of the found word
+                    int capturedPosStartInWholeLine = capturedPosStart - linePosStart;
+
+                    // Position (from the start of the line) of the end of the found word
+                    int capturedPosEndInWholeLine = capturedPosStartInWholeLine + matches[0].length();
+
+                    QList<QStandardItem *> lineRow;
+                    lineRow << new QStandardItem(QString("Line %1: %2").arg(wholeLineNumber + 1).arg(wholeLine));
+                    fileRow[0]->appendRow(lineRow);
+
+                    curFileMatches++;
+                    totalFileMatches++;
+                }
+            }
+
+            f.close();
+
+            if (curFileMatches > 0) {
+                fileRow[0]->setText(QString("%1 (%2 hits)").arg(fileName).arg(curFileMatches));
+                searchRow[0]->appendRow(fileRow);
+
+                totalFiles++;
+            } else {
+                delete fileRow[0];
+            }
+        }
+
+        searchRow[0]->setText(QString("Search \"%1\" (%2 hits in %3 files)").arg(string).arg(totalFileMatches).arg(totalFiles));
+        QStandardItem *root = m_filesFindResultsModel->invisibleRootItem();
+        root->insertRow(0, searchRow);
+    }
 }
 
 frmSearchReplace::SearchMode frmSearchReplace::searchModeFromUI()
@@ -262,20 +399,40 @@ void frmSearchReplace::on_btnSelectAll_clicked()
 
 void frmSearchReplace::on_actionReplace_toggled(bool on)
 {
-    ui->actionFind->setChecked(!on);
-
     ui->btnReplaceAll->setVisible(on);
     ui->btnReplaceNext->setVisible(on);
     ui->btnReplacePrev->setVisible(on);
     ui->cmbReplace->setVisible(on);
     ui->lblReplace->setVisible(on);
 
+    ui->cmbSearch->setFocus();
+
     manualSizeAdjust();
 }
 
-void frmSearchReplace::on_actionFind_toggled(bool on)
+void frmSearchReplace::on_actionFind_toggled(bool /*on*/)
 {
-    ui->actionReplace->setChecked(!on);
+    ui->cmbSearch->setFocus();
+
+    manualSizeAdjust();
+}
+
+void frmSearchReplace::on_actionFind_in_files_toggled(bool on)
+{
+    ui->lblLookIn->setVisible(on);
+    ui->cmbLookIn->setVisible(on);
+    ui->lblFilter->setVisible(on);
+    ui->cmbFilter->setVisible(on);
+    ui->btnLookInBrowse->setVisible(on);
+    ui->btnFindAll->setVisible(on);
+    ui->lblSpacer1->setVisible(on);
+    ui->lblSpacer2->setVisible(on);
+    ui->chkIncludeSubdirs->setVisible(on);
+    ui->btnFindNext->setVisible(!on);
+    ui->btnFindPrev->setVisible(!on);
+    ui->btnSelectAll->setVisible(!on);
+
+    ui->cmbSearch->setFocus();
 
     manualSizeAdjust();
 }
@@ -284,16 +441,12 @@ void frmSearchReplace::manualSizeAdjust()
 {
     int curX = geometry().x();
     int curY = geometry().y();
-    //setFixedSize(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
+
     QApplication::processEvents();
     QApplication::processEvents();
     setGeometry(curX, curY, width(), 0);
-    /*QApplication::processEvents();
-    QApplication::processEvents();
+
     setFixedSize(width(), height());
-    QApplication::processEvents();
-    QApplication::processEvents();
-    setGeometry(curX, curY, width(), height());*/
 }
 
 void frmSearchReplace::on_chkShowAdvanced_toggled(bool checked)
@@ -351,5 +504,26 @@ void frmSearchReplace::on_searchStringEdited(const QString &/*text*/)
 
             findFromUI(true);
         }
+    }
+}
+
+void frmSearchReplace::on_btnFindAll_clicked()
+{
+    searchInFiles(ui->cmbSearch->currentText(),
+                  ui->cmbLookIn->currentText(),
+                  ui->cmbFilter->currentText().split(",", QString::SkipEmptyParts),
+                  searchModeFromUI(),
+                  searchOptionsFromUI());
+}
+
+void frmSearchReplace::on_btnLookInBrowse_clicked()
+{
+    QString dir = QFileDialog::getExistingDirectory(this, tr("Look in"),
+                                                     ui->cmbLookIn->currentText(),
+                                                     QFileDialog::ShowDirsOnly
+                                                     | QFileDialog::DontResolveSymlinks);
+
+    if (!dir.isEmpty()) {
+        ui->cmbLookIn->setCurrentText(dir);
     }
 }

@@ -6,6 +6,7 @@
 #include <QEventLoop>
 #include <QSettings>
 #include <QUrlQuery>
+#include <QRegularExpression>
 
 #ifdef USE_QTWEBENGINE
     #include <QWebEngineSettings>
@@ -550,7 +551,7 @@ namespace EditorNS
         for (QString themeStr : themeFiles) {
             QFileInfo theme = QFileInfo(themeStr);
             QString nameWithoutExt = theme.fileName()
-                    .replace(QRegExp("\\.css$"), "");
+                    .replace(QRegularExpression("\\.css$"), "");
 
             Theme t;
             t.name = nameWithoutExt;
