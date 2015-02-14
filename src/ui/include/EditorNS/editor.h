@@ -284,6 +284,8 @@ namespace EditorNS
 
         QString getCurrentWord();
 
+        void setSelection(int fromLine, int fromCol, int toLine, int toCol);
+
     private:
         static QQueue<Editor*> m_editorBuffer;
         QVBoxLayout *m_layout;

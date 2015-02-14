@@ -71,7 +71,6 @@
     <addaction name="separator"/>
     <addaction name="actionPrint"/>
     <addaction name="actionPrint_Now"/>
-    <addaction name="separator"/>
     <addaction name="menuRecent_Files"/>
     <addaction name="separator"/>
     <addaction name="actionE_xit"/>
@@ -110,6 +109,26 @@
      <addaction name="actionIndentation_Default_settings"/>
      <addaction name="actionIndentation_Custom"/>
     </widget>
+    <widget class="QMenu" name="menuLine_Operations">
+     <property name="title">
+      <string>Line Operations</string>
+     </property>
+     <addaction name="actionDuplicate_Line"/>
+     <addaction name="actionDelete_Line"/>
+    </widget>
+    <widget class="QMenu" name="menuBlank_Operations">
+     <property name="title">
+      <string>Blank Operations</string>
+     </property>
+     <addaction name="actionTrim_Trailing_Space"/>
+     <addaction name="actionTrim_Leading_Space"/>
+     <addaction name="actionTrim_Leading_and_Trailing_Space"/>
+     <addaction name="actionEOL_to_Space"/>
+     <addaction name="separator"/>
+     <addaction name="actionTAB_to_Space"/>
+     <addaction name="actionSpace_to_TAB_All"/>
+     <addaction name="actionSpace_to_TAB_Leading"/>
+    </widget>
     <addaction name="action_Undo"/>
     <addaction name="action_Redo"/>
     <addaction name="separator"/>
@@ -121,7 +140,9 @@
     <addaction name="separator"/>
     <addaction name="menuCopy_to_Clipboard"/>
     <addaction name="menuConvert_Case_to"/>
+    <addaction name="menuLine_Operations"/>
     <addaction name="menuEOL_Conversion"/>
+    <addaction name="menuBlank_Operations"/>
     <addaction name="menuIndentation"/>
    </widget>
    <widget class="QMenu" name="menu_Search">
@@ -324,16 +345,6 @@
      <property name="bottomMargin">
       <number>0</number>
      </property>
-     <item>
-      <widget class="QTreeView" name="treeFileSearchResults">
-       <property name="editTriggers">
-        <set>QAbstractItemView::NoEditTriggers</set>
-       </property>
-       <attribute name="headerVisible">
-        <bool>false</bool>
-       </attribute>
-      </widget>
-     </item>
     </layout>
    </widget>
   </widget>
@@ -430,10 +441,16 @@
    <property name="shortcut">
     <string>Ctrl+P</string>
    </property>
+   <property name="visible">
+    <bool>false</bool>
+   </property>
   </action>
   <action name="actionPrint_Now">
    <property name="text">
     <string>Print Now</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
   <action name="actionOpen_All_Recent_Files">
@@ -905,6 +922,69 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+F</string>
+   </property>
+  </action>
+  <action name="actionDelete_Line">
+   <property name="text">
+    <string>Delete Current Line</string>
+   </property>
+   <property name="toolTip">
+    <string>Delete the current line</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+L</string>
+   </property>
+  </action>
+  <action name="actionDuplicate_Line">
+   <property name="text">
+    <string>Duplicate Current Line</string>
+   </property>
+   <property name="toolTip">
+    <string>Duplicate the current line</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+D</string>
+   </property>
+  </action>
+  <action name="actionTrim_Trailing_Space">
+   <property name="text">
+    <string>Trim Trailing Space</string>
+   </property>
+   <property name="toolTip">
+    <string>Trim Trailing Space</string>
+   </property>
+  </action>
+  <action name="actionTrim_Leading_Space">
+   <property name="text">
+    <string>Trim Leading Space</string>
+   </property>
+   <property name="toolTip">
+    <string>Trim Leading Space</string>
+   </property>
+  </action>
+  <action name="actionTrim_Leading_and_Trailing_Space">
+   <property name="text">
+    <string>Trim Leading and Trailing Space</string>
+   </property>
+  </action>
+  <action name="actionEOL_to_Space">
+   <property name="text">
+    <string>EOL to Space</string>
+   </property>
+  </action>
+  <action name="actionTAB_to_Space">
+   <property name="text">
+    <string>TAB to Space</string>
+   </property>
+  </action>
+  <action name="actionSpace_to_TAB_All">
+   <property name="text">
+    <string>Space to TAB (All)</string>
+   </property>
+  </action>
+  <action name="actionSpace_to_TAB_Leading">
+   <property name="text">
+    <string>Space to TAB (Leading)</string>
    </property>
   </action>
  </widget>

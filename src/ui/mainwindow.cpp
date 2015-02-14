@@ -30,7 +30,8 @@ MainWindow::MainWindow(const QString &workingDirectory, const QStringList &argum
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_topEditorContainer(new TopEditorContainer(this)),
-    m_filesFindResultsModel(new QStandardItemModel(this))
+    m_fileSearchResultsWidget(new FileSearchResultsWidget()),
+    m_workingDirectory(workingDirectory)
 {
     ui->setupUi(this);
     setAttribute(Qt::WA_DeleteOnClose);
@@ -109,9 +110,9 @@ MainWindow::MainWindow(const QString &workingDirectory, const QStringList &argum
 
     setAcceptDrops(true);
 
-    connect(m_filesFindResultsModel, &QStandardItemModel::rowsInserted,
-            this, &MainWindow::on_filesFindResultsModelRowsInserted);
-    ui->treeFileSearchResults->setModel(m_filesFindResultsModel);
+    ui->dockFileSearchResults->setWidget(m_fileSearchResultsWidget);
+    connect(m_fileSearchResultsWidget, &FileSearchResultsWidget::resultMatchClicked,
+            this, &MainWindow::on_resultMatchClicked);
 
     // Initialize UI from settings
     ui->actionWord_wrap->setChecked(m_settings->value("wordWrap", false).toBool());
@@ -367,6 +368,25 @@ void MainWindow::fixKeyboardShortcuts()
     }
 }
 
+QUrl MainWindow::stringToUrl(QString fileName, QString workingDirectory)
+{
+    if (workingDirectory.isEmpty())
+        workingDirectory = m_workingDirectory;
+
+    QUrl f = QUrl(fileName);
+    if (f.isRelative()) { // No schema
+        QFileInfo fi(fileName);
+        if (fi.isRelative()) { // Relative local path
+            QString absolute = QDir::cleanPath(workingDirectory + QDir::separator() + fileName);
+            return QUrl::fromLocalFile(absolute);
+        } else {
+            return QUrl::fromLocalFile(fileName);
+        }
+    } else {
+        return f;
+    }
+}
+
 void MainWindow::openCommandLineProvidedUrls(const QString &workingDirectory, const QStringList &arguments)
 {
     if (arguments.count() == 0) {
@@ -389,18 +409,7 @@ void MainWindow::openCommandLineProvidedUrls(const QString &workingDirectory, co
         QList<QUrl> files;
         for(int i = 0; i < rawUrls.count(); i++)
         {
-            QUrl f = QUrl(rawUrls.at(i));
-            if (f.isRelative()) { // No schema
-                QFileInfo fi(rawUrls.at(i));
-                if (fi.isRelative()) { // Relative local path
-                    QString absolute = QDir::cleanPath(workingDirectory + QDir::separator() + rawUrls.at(i));
-                    files.append(QUrl::fromLocalFile(absolute));
-                } else {
-                    files.append(QUrl::fromLocalFile(rawUrls.at(i)));
-                }
-            } else {
-                files.append(f);
-            }
+            files.append(stringToUrl(rawUrls.at(i), workingDirectory));
         }
 
         EditorTabWidget *tabW = m_topEditorContainer->currentTabWidget();
@@ -1019,13 +1028,28 @@ void MainWindow::on_actionE_xit_triggered()
     close();
 }
 
-void MainWindow::on_actionSearch_triggered()
+void MainWindow::instantiateFrmSearchReplace()
 {
     if (!m_frmSearchReplace) {
         m_frmSearchReplace = new frmSearchReplace(
                             m_topEditorContainer,
-                            m_filesFindResultsModel,
                             this);
+
+        connect(m_frmSearchReplace, &frmSearchReplace::fileSearchResultFinished,
+                this, &MainWindow::on_fileSearchResultFinished);
+    }
+}
+
+void MainWindow::on_fileSearchResultFinished(FileSearchResult::SearchResult result)
+{
+    m_fileSearchResultsWidget->addSearchResult(result);
+    ui->dockFileSearchResults->show();
+}
+
+void MainWindow::on_actionSearch_triggered()
+{
+    if (!m_frmSearchReplace) {
+        instantiateFrmSearchReplace();
     }
     m_frmSearchReplace->show(frmSearchReplace::TabSearch);
     m_frmSearchReplace->activateWindow();
@@ -1157,10 +1181,7 @@ void MainWindow::on_fileOnDiskChanged(EditorTabWidget *tabWidget, int tab, bool 
 void MainWindow::on_actionReplace_triggered()
 {
     if (!m_frmSearchReplace) {
-        m_frmSearchReplace = new frmSearchReplace(
-                            m_topEditorContainer,
-                            m_filesFindResultsModel,
-                            this);
+        instantiateFrmSearchReplace();
     }
     m_frmSearchReplace->show(frmSearchReplace::TabReplace);
     m_frmSearchReplace->activateWindow();
@@ -1787,26 +1808,71 @@ void MainWindow::on_tabBarDoubleClicked(EditorTabWidget *tabWidget, int tab)
     }
 }
 
-void MainWindow::on_filesFindResultsModelRowsInserted(const QModelIndex &/*parent*/, int /*first*/, int /*last*/)
-{
-    // Force an update of the treeView, otherwise the new row isn't available (Qt bug?)
-    ui->treeFileSearchResults->setModel(NULL);
-    ui->treeFileSearchResults->setModel(m_filesFindResultsModel);
-
-    // Expand the first row
-    ui->treeFileSearchResults->expand(m_filesFindResultsModel->item(0)->index());
-
-    ui->dockFileSearchResults->show();
-}
-
 void MainWindow::on_actionFind_in_Files_triggered()
 {
     if (!m_frmSearchReplace) {
-        m_frmSearchReplace = new frmSearchReplace(
-                            m_topEditorContainer,
-                            m_filesFindResultsModel,
-                            this);
+        instantiateFrmSearchReplace();
     }
     m_frmSearchReplace->show(frmSearchReplace::TabSearchInFiles);
     m_frmSearchReplace->activateWindow();
+}
+
+void MainWindow::on_actionDelete_Line_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_DELETE_LINE");
+}
+
+void MainWindow::on_actionDuplicate_Line_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_DUPLICATE_LINE");
+}
+
+void MainWindow::on_resultMatchClicked(const FileSearchResult::FileResult &file, const FileSearchResult::Result &match)
+{
+    QUrl url = stringToUrl(file.fileName);
+    m_docEngine->loadDocument(url,
+                              m_topEditorContainer->currentTabWidget());
+
+    QPair<int, int> pos = m_docEngine->findOpenEditorByUrl(url);
+    EditorTabWidget *tabW = m_topEditorContainer->tabWidget(pos.first);
+    Editor *editor = tabW->editor(pos.second);
+
+    editor->setSelection(match.matchStartLine, match.matchStartCol, match.matchEndLine, match.matchEndCol);
+
+    editor->setFocus();
+}
+
+void MainWindow::on_actionTrim_Trailing_Space_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_TRIM_TRAILING_SPACE");
+}
+
+void MainWindow::on_actionTrim_Leading_Space_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_TRIM_LEADING_SPACE");
+}
+
+void MainWindow::on_actionTrim_Leading_and_Trailing_Space_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_TRIM_LEADING_TRAILING_SPACE");
+}
+
+void MainWindow::on_actionEOL_to_Space_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_EOL_TO_SPACE");
+}
+
+void MainWindow::on_actionTAB_to_Space_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_TAB_TO_SPACE");
+}
+
+void MainWindow::on_actionSpace_to_TAB_All_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_SPACE_TO_TAB_ALL");
+}
+
+void MainWindow::on_actionSpace_to_TAB_Leading_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_SPACE_TO_TAB_LEADING");
 }

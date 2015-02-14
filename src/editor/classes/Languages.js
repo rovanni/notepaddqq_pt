@@ -21,7 +21,8 @@ var Languages = new function() {
             name: "Asterisk",
             mode: "asterisk",
             mime: "text/x-asterisk",
-            fileExtensions: ["agi"]
+            fileExtensions: ["agi"],
+            fileNames: ["extensions.conf", "extensions_custom.conf", "extensions_general.conf", "extensions_globals.conf"]
         },
 
         "c": {
@@ -92,7 +93,7 @@ var Languages = new function() {
             name: "Cypher",
             mode: "cypher",
             mime: "application/x-cypher-query",
-            fileExtensions: ["cypher"]
+            fileExtensions: ["cyp", "cypher"]
         },
 
         "css": {
@@ -107,6 +108,13 @@ var Languages = new function() {
             mode: "d",
             mime: "text/x-d",
             fileExtensions: ["d"]
+        },
+
+        "dart": {
+            name: "Dart",
+            mode: "dart",
+            mime: "application/dart",
+            fileExtensions: ["dart"]
         },
 
         "diff": {
@@ -127,7 +135,8 @@ var Languages = new function() {
             name: "Dockerfile",
             mode: "dockerfile",
             mime: "text/x-dockerfile",
-            fileExtensions: []
+            fileExtensions: [],
+            fileNames: ["Dockerfile"]
         },
 
         "dtd": {
@@ -144,6 +153,13 @@ var Languages = new function() {
             fileExtensions: ["dylan"]
         },
 
+        "ebnf": {
+            name: "EBNF",
+            mode: "ebnf",
+            mime: "text/x-ebnf",
+            fileExtensions: []
+        },
+
         "ecl": {
             name: "ECL",
             mode: "ecl",
@@ -156,6 +172,13 @@ var Languages = new function() {
             mode: "eiffel",
             mime: "text/x-eiffel",
             fileExtensions: []
+        },
+
+        "erb": {
+            name: "Embedded Ruby",
+            mode: "htmlembedded",
+            mime: "application/x-erb",
+            fileExtensions: ["erb"]
         },
 
         "erlang": {
@@ -190,6 +213,13 @@ var Languages = new function() {
             name: "Gherkin",
             mode: "gherkin",
             mime: "text/x-feature",
+            fileExtensions: []
+        },
+
+        "markdown-github": {
+            name: "Markdown (GitHub-flavour)",
+            mode: "gfm",
+            mime: "text/x-gfm",
             fileExtensions: []
         },
 
@@ -302,7 +332,7 @@ var Languages = new function() {
             name: "JSON-LD",
             mode: "javascript",
             mime: "application/ld+json",
-            fileExtensions: []
+            fileExtensions: ["jsonld"]
         },
 
         "typescript": {
@@ -362,8 +392,8 @@ var Languages = new function() {
             fileNames: ["Makefile", "Makefile.in", "GNUmakefile", "rules"]
         },
 
-        "markdown-github": {
-            name: "Markdown (GitHub-flavour)",
+        "markdown": {
+            name: "Markdown",
             mode: "markdown",
             mime: "text/x-markdown",
             fileExtensions: ["md", "mkdn", "mdown", "markdn", "markdown"]
@@ -452,6 +482,13 @@ var Languages = new function() {
             mode: "pig",
             mime: "text/x-pig",
             fileExtensions: ["pig"]
+        },
+
+        "plsql": {
+            name: "PLSQL",
+            mode: "sql",
+            mime: "text/x-plsql",
+            fileExtensions: ["pls"]
         },
 
         "properties": {
@@ -565,14 +602,14 @@ var Languages = new function() {
             name: "Sieve",
             mode: "sieve",
             mime: "application/sieve",
-            fileExtensions: []
+            fileExtensions: ["siv", "sieve"]
         },
 
         "slim": {
             name: "Slim",
             mode: "slim",
             mime: "text/x-slim",
-            fileExtensions: []
+            fileExtensions: ["slim"]
         },
 
         "smalltalk": {
@@ -603,11 +640,25 @@ var Languages = new function() {
             fileExtensions: []
         },
 
+        "soy": {
+            name: "Soy",
+            mode: "soy",
+            mime: "text/x-soy",
+            fileExtensions: ["soy"]
+        },
+
         "sparql": {
             name: "SPARQL",
             mode: "sparql",
             mime: "application/x-sparql-query",
             fileExtensions: ["sparql"]
+        },
+
+        "spreadsheet": {
+            name: "Spreadsheet",
+            mode: "spreadsheet",
+            mime: "text/x-spreadsheet",
+            fileExtensions: ["excel", "formula"]
         },
 
         "sql": {
@@ -656,7 +707,7 @@ var Languages = new function() {
             name: "Textile",
             mode: "textile",
             mime: "text/x-textile",
-            fileExtensions: []
+            fileExtensions: ["textile"]
         },
 
         "tiddlywiki": {
@@ -677,7 +728,7 @@ var Languages = new function() {
             name: "TOML",
             mode: "toml",
             mime: "text/x-toml",
-            fileExtensions: []
+            fileExtensions: ["toml"]
         },
 
         "turtle": {

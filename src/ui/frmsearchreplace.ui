@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>488</width>
-    <height>542</height>
+    <height>555</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -290,10 +290,7 @@
          <string>Find ⇩</string>
         </property>
         <property name="autoDefault">
-         <bool>false</bool>
-        </property>
-        <property name="default">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -303,7 +300,7 @@
          <string>Select all</string>
         </property>
         <property name="autoDefault">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -313,7 +310,7 @@
          <string>Replace ⇧</string>
         </property>
         <property name="autoDefault">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -323,10 +320,7 @@
          <string>Replace ⇩</string>
         </property>
         <property name="autoDefault">
-         <bool>false</bool>
-        </property>
-        <property name="default">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -336,7 +330,7 @@
          <string>Replace all</string>
         </property>
         <property name="autoDefault">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -352,6 +346,9 @@
         <property name="text">
          <string>Find all</string>
         </property>
+        <property name="autoDefault">
+         <bool>true</bool>
+        </property>
        </widget>
       </item>
       <item row="0" column="1">
@@ -360,7 +357,7 @@
          <string>Find ⇧</string>
         </property>
         <property name="autoDefault">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -450,6 +447,27 @@
    </property>
   </action>
  </widget>
+ <tabstops>
+  <tabstop>cmbSearch</tabstop>
+  <tabstop>cmbReplace</tabstop>
+  <tabstop>cmbLookIn</tabstop>
+  <tabstop>btnLookInBrowse</tabstop>
+  <tabstop>cmbFilter</tabstop>
+  <tabstop>chkIncludeSubdirs</tabstop>
+  <tabstop>chkShowAdvanced</tabstop>
+  <tabstop>radSearchPlainText</tabstop>
+  <tabstop>radSearchWithRegex</tabstop>
+  <tabstop>radSearchWithSpecialChars</tabstop>
+  <tabstop>chkMatchWholeWord</tabstop>
+  <tabstop>chkMatchCase</tabstop>
+  <tabstop>btnFindPrev</tabstop>
+  <tabstop>btnFindNext</tabstop>
+  <tabstop>btnSelectAll</tabstop>
+  <tabstop>btnReplacePrev</tabstop>
+  <tabstop>btnReplaceNext</tabstop>
+  <tabstop>btnReplaceAll</tabstop>
+  <tabstop>btnFindAll</tabstop>
+ </tabstops>
  <resources>
   <include location="resources.qrc"/>
  </resources>
