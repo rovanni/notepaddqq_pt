@@ -25,11 +25,14 @@ namespace EditorNS
     signals:
         void mouseWheel(QWheelEvent *ev);
         void JavascriptEvaluated();
+        void urlsDropped(QList<QUrl> urls);
+
     public slots:
 
     protected:
         void wheelEvent(QWheelEvent *ev);
         void keyPressEvent(QKeyEvent *ev);
+        void dropEvent(QDropEvent *ev);
     };
 
 }

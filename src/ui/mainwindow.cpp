@@ -197,8 +197,8 @@ void MainWindow::loadIcons()
     ui->actionSave->setIcon(IconProvider::fromTheme("document-save"));
     ui->actionSave_as->setIcon(IconProvider::fromTheme("document-save-as"));
     ui->actionSave_All->setIcon(IconProvider::fromTheme("document-save-all"));
-    ui->actionClose->setIcon(IconProvider::fromTheme("notepadqq-document-close"));
-    ui->actionC_lose_All->setIcon(IconProvider::fromTheme("notepadqq-document-close-all"));
+    ui->actionClose->setIcon(IconProvider::fromTheme("document-close"));
+    ui->actionC_lose_All->setIcon(IconProvider::fromTheme("document-close-all"));
     ui->actionPrint_Now->setIcon(IconProvider::fromTheme("document-print"));
     ui->actionCu_t->setIcon(IconProvider::fromTheme("edit-cut"));
     ui->action_Copy->setIcon(IconProvider::fromTheme("edit-copy"));
@@ -212,12 +212,12 @@ void MainWindow::loadIcons()
     ui->action_Stop_Recording->setIcon(IconProvider::fromTheme("media-playback-stop"));
     ui->action_Playback->setIcon(IconProvider::fromTheme("media-playback-start"));
     ui->actionRun_a_Macro_Multiple_Times->setIcon(IconProvider::fromTheme("media-seek-forward"));
-    ui->actionSave_Currently_Recorded_Macro->setIcon(IconProvider::fromTheme("notepadqq-save-macro"));
+    ui->actionSave_Currently_Recorded_Macro->setIcon(IconProvider::fromTheme("document-save-as"));
     ui->actionPreferences->setIcon(IconProvider::fromTheme("preferences-other"));
     ui->actionSearch->setIcon(IconProvider::fromTheme("edit-find"));
     ui->actionReplace->setIcon(IconProvider::fromTheme("edit-find-replace"));
-    ui->actionShow_All_Characters->setIcon(IconProvider::fromTheme("notepadqq-show-special-chars"));
-    ui->actionWord_wrap->setIcon(IconProvider::fromTheme("notepadqq-word-wrap"));
+    ui->actionShow_All_Characters->setIcon(IconProvider::fromTheme("show-special-chars"));
+    ui->actionWord_wrap->setIcon(IconProvider::fromTheme("word-wrap"));
     ui->actionFind_Next->setIcon(IconProvider::fromTheme("go-next"));
     ui->actionFind_Previous->setIcon(IconProvider::fromTheme("go-previous"));
 }
@@ -437,14 +437,27 @@ void MainWindow::dropEvent(QDropEvent *e)
 {
     QMainWindow::dropEvent(e);
 
-    QList<QUrl> fileNames;
-    foreach (const QUrl &url, e->mimeData()->urls()) {
-        fileNames.append(url);
-    }
-
+    QList<QUrl> fileNames = e->mimeData()->urls();
     if (!fileNames.empty()) {
         m_docEngine->loadDocuments(fileNames,
                                    m_topEditorContainer->currentTabWidget());
+    }
+}
+
+void MainWindow::on_editorUrlsDropped(QList<QUrl> urls)
+{
+    EditorTabWidget *tabWidget;
+    Editor *editor = dynamic_cast<Editor *>(sender());
+
+    if (editor) {
+        tabWidget = m_topEditorContainer->tabWidgetFromEditor(editor);
+    } else {
+        tabWidget = m_topEditorContainer->currentTabWidget();
+    }
+
+    if (!urls.empty()) {
+        m_docEngine->loadDocuments(urls,
+                                   tabWidget);
     }
 }
 
@@ -827,6 +840,7 @@ void MainWindow::on_editorAdded(EditorTabWidget *tabWidget, int tab)
         if (currentEditor() == editor)
             refreshEditorUiInfo(editor);
     });
+    connect(editor, &Editor::urlsDropped, this, &MainWindow::on_editorUrlsDropped);
 
     // Initialize editor with UI settings
     editor->setLineWrap(ui->actionWord_wrap->isChecked());

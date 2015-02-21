@@ -2,6 +2,7 @@
 #include "include/EditorNS/websocketclientwrapper.h"
 #include <QEventLoop>
 #include <QBuffer>
+#include <QMimeData>
 
 #ifdef USE_QTWEBENGINE
     #include <QtWebChannel/QWebChannel>
@@ -116,6 +117,16 @@ namespace EditorNS
             break;
         default:
             WEBVIEWNAME::keyPressEvent(ev);
+        }
+    }
+
+    void CustomQWebView::dropEvent(QDropEvent *ev)
+    {
+        if (ev->mimeData()->hasUrls()) {
+            ev->ignore();
+            emit urlsDropped(ev->mimeData()->urls());
+        } else {
+            WEBVIEWNAME::dropEvent(ev);
         }
     }
 

@@ -4,21 +4,37 @@
 #include <QObject>
 #include <QMutex>
 #include "include/Search/filesearchresult.h"
-#include "include/Search/frmsearchreplace.h"
+#include "include/Search/searchhelpers.h"
 
 class SearchInFilesWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit SearchInFilesWorker(QString string, QString path, QStringList filters, frmSearchReplace::SearchMode searchMode, frmSearchReplace::SearchOptions searchOptions);
+    explicit SearchInFilesWorker(const QString &string, const QString &path, const QStringList &filters, const SearchHelpers::SearchMode &searchMode, const SearchHelpers::SearchOptions &searchOptions);
     ~SearchInFilesWorker();
 
     FileSearchResult::SearchResult getResult();
 
 signals:
-    void finished();
+    /**
+     * @brief The worker finished its work.
+     * @param stopped if true, the worker did not complete its operations
+     *        (e.g. because of an error or because it was manually stopped).
+     */
+    void finished(bool stopped);
     void error(QString string);
     void progress(QString file);
+
+    /**
+     * @brief Error reading a file. You can handle this signal
+     *        and show a message box asking the user to abort/retry/ignore.
+     *        Assign the result of the message box to "operation".
+     *        Make sure to connect to this signal with
+     *        Qt::BlockingQueuedConnection
+     * @param message
+     * @param operation
+     */
+    void errorReadingFile(const QString &message, int &operation);
 
 public slots:
     void run();
@@ -28,8 +44,8 @@ private:
     QString m_string;
     QString m_path;
     QStringList m_filters;
-    frmSearchReplace::SearchMode m_searchMode;
-    frmSearchReplace::SearchOptions m_searchOptions;
+    SearchHelpers::SearchMode m_searchMode;
+    SearchHelpers::SearchOptions m_searchOptions;
     FileSearchResult::SearchResult m_result;
     QMutex m_resultMutex;
     bool m_stop = false;
