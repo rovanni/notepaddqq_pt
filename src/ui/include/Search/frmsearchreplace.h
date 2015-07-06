@@ -11,6 +11,7 @@
 #include <QMainWindow>
 #include <QStandardItemModel>
 #include <QMessageBox>
+#include <QComboBox>
 
 namespace Ui {
 class frmSearchReplace;
@@ -25,6 +26,7 @@ public:
     explicit frmSearchReplace(TopEditorContainer *topEditorContainer, QWidget *parent = 0);
     ~frmSearchReplace();
     void show(Tabs defaultTab);
+    void setSearchText(QString string);
 
     /**
      * @brief Runs a "find next" or "find prev", taking the options from the UI
@@ -101,6 +103,11 @@ private:
      * @param operation
      */
     void displayThreadErrorMessageBox(const QString &message, int &operation);
+    void addToHistory(QString string, QString type, QComboBox *comboBox);
+    void addToSearchHistory(QString string);
+    void addToReplaceHistory(QString string);
+    void addToFileHistory(QString string);
+    void addToFilterHistory(QString string);
 signals:
     void fileSearchResultFinished(FileSearchResult::SearchResult result);
 };

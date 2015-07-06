@@ -12,6 +12,10 @@
 #include "include/clickablelabel.h"
 #include "include/frmencodingchooser.h"
 #include "include/frmindentationmode.h"
+#include "include/Extensions/extensionsloader.h"
+#include "include/frmlinenumberchooser.h"
+#include "include/Extensions/Stubs/windowstub.h"
+#include "include/Extensions/installextension.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QClipboard>
@@ -23,6 +27,7 @@
 #include <QtPrintSupport/QPrintDialog>
 #include <QtPrintSupport/QPrintPreviewDialog>
 #include <QDesktopServices>
+#include <QJsonArray>
 
 QList<MainWindow*> MainWindow::m_instances = QList<MainWindow*>();
 
@@ -142,8 +147,12 @@ MainWindow::MainWindow(const QString &workingDirectory, const QStringList &argum
 
     setupLanguagesMenu();
 
+    showExtensionsMenu(Extensions::ExtensionsLoader::extensionRuntimePresent());
+
     // DEBUG: Add a second tabWidget
     //this->topEditorContainer->addTabWidget()->addEditorTab(false, "test");
+
+    emit Notepadqq::getInstance().newWindow(this);
 }
 
 MainWindow::MainWindow(const QStringList &arguments, QWidget *parent)
@@ -394,7 +403,7 @@ void MainWindow::openCommandLineProvidedUrls(const QString &workingDirectory, co
         return;
     }
 
-    QCommandLineParser *parser = Notepadqq::getCommandLineArgumentsParser(arguments);
+    QSharedPointer<QCommandLineParser> parser = Notepadqq::getCommandLineArgumentsParser(arguments);
 
     QStringList rawUrls = parser->positionalArguments();
 
@@ -420,8 +429,6 @@ void MainWindow::openCommandLineProvidedUrls(const QString &workingDirectory, co
 
         m_docEngine->loadDocuments(files, tabW);
     }
-
-    delete parser;
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *e)
@@ -603,6 +610,41 @@ void MainWindow::on_action_Open_triggered()
     }
 }
 
+void MainWindow::on_actionOpen_Folder_triggered()
+{
+    QUrl defaultUrl = currentEditor()->fileName();
+    if (defaultUrl.isEmpty())
+            defaultUrl = QUrl::fromLocalFile(m_settings->value("lastSelectedDir", ".").toString());
+
+    // Select directory
+    QString folder = QFileDialog::getExistingDirectory(this, tr("Open Folder"), defaultUrl.toLocalFile(), 0);
+    if (!folder.isEmpty()) {
+
+        // Get files within directory
+        QDir dir(folder);
+        QStringList files = dir.entryList(QStringList(), QDir::Files);
+
+        // Convert file names to urls
+        QList<QUrl> fileNames;
+        for (QString file : files) {
+            // Exclude hidden and backup files
+            if (!file.startsWith(".") && !file.endsWith("~")) {
+                fileNames.append(stringToUrl(file, folder));
+            }
+        }
+
+        if (!fileNames.isEmpty()) {
+
+            m_docEngine->loadDocuments(fileNames,
+                                       m_topEditorContainer->currentTabWidget());
+
+            m_settings->setValue("lastSelectedDir", folder);
+
+        }
+
+    }
+}
+
 int MainWindow::askIfWantToSave(EditorTabWidget *tabWidget, int tab, int reason)
 {
     QMessageBox msgBox(this);
@@ -777,6 +819,37 @@ Editor *MainWindow::currentEditor()
     return m_topEditorContainer->currentTabWidget()->currentEditor();
 }
 
+QSharedPointer<Editor> MainWindow::currentEditorSharedPtr()
+{
+    EditorTabWidget *tabW = m_topEditorContainer->currentTabWidget();
+    return tabW->editorSharedPtr(tabW->currentIndex());
+}
+
+QAction * MainWindow::addExtensionMenuItem(QString extensionId, QString text)
+{
+    QMap<QString, QSharedPointer<Extensions::Extension>> extensions = Extensions::ExtensionsLoader::loadedExtensions();
+
+    if (extensions.contains(extensionId)) {
+        QSharedPointer<Extensions::Extension> extension = extensions.value(extensionId);
+
+        // Create the menu for the extension if it doesn't exist yet.
+        if (!m_extensionMenus.contains(extension)) {
+            QMenu *menu = new QMenu(extension->name(), this);
+            ui->menuExtensions->addMenu(menu);
+            m_extensionMenus.insert(extension, menu);
+        }
+
+        // Create the menu item
+        QAction *action = new QAction(text, this);
+        m_extensionMenus[extension]->addAction(action);
+
+        return action;
+    } else {
+        // Invalid extension id
+        return NULL;
+    }
+}
+
 void MainWindow::on_tabCloseRequested(EditorTabWidget *tabWidget, int tab)
 {
     closeTab(tabWidget, tab);
@@ -875,7 +948,7 @@ void MainWindow::refreshEditorUiCursorInfo(Editor *editor)
     if (editor != 0) {
         // Update status bar
         int len = editor->sendMessageWithResult("C_FUN_GET_TEXT_LENGTH").toInt();
-        int lines = editor->sendMessageWithResult("C_FUN_GET_LINE_COUNT").toInt();
+        int lines = editor->lineCount();
         m_statusBar_length_lines->setText(tr("%1 chars, %2 lines").arg(len).arg(lines));
 
         QPair<int, int> cursor = editor->cursorPosition();
@@ -904,16 +977,16 @@ void MainWindow::refreshEditorUiInfo(Editor *editor)
 
 
     // Update MainWindow title
+    QString newTitle;
     if (editor->fileName().isEmpty()) {
-        setWindowTitle(QApplication::applicationName()); // Fallback
 
         EditorTabWidget *tabWidget = m_topEditorContainer->tabWidgetFromEditor(editor);
         if (tabWidget != 0) {
             int tab = tabWidget->indexOf(editor);
             if (tab != -1) {
-                setWindowTitle(QString("%1 - %2")
+                newTitle = QString("%1 - %2")
                                .arg(tabWidget->tabText(tab))
-                               .arg(QApplication::applicationName()));
+                               .arg(QApplication::applicationName());
             }
         }
 
@@ -932,11 +1005,15 @@ void MainWindow::refreshEditorUiInfo(Editor *editor)
                                            QUrl::StripTrailingSlash
                                            );
 
-        setWindowTitle(QString("%1 (%2) - %3")
+        newTitle = QString("%1 (%2) - %3")
                        .arg(Notepadqq::fileNameFromUrl(editor->fileName()))
                        .arg(path)
-                       .arg(QApplication::applicationName()));
+                       .arg(QApplication::applicationName());
 
+    }
+
+    if (newTitle != windowTitle()) {
+        setWindowTitle(newTitle.isNull() ? QApplication::applicationName() : newTitle);
     }
 
 
@@ -1035,6 +1112,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
     m_settings->setValue("geometry", saveGeometry());
     m_settings->setValue("windowState", saveState());
     m_settings->endGroup();
+
+    // Disconnect signals to avoid handling events while
+    // the UI is being destroyed.
+    disconnect(m_topEditorContainer, 0, this, 0);
 }
 
 void MainWindow::on_actionE_xit_triggered()
@@ -1065,6 +1146,12 @@ void MainWindow::on_actionSearch_triggered()
     if (!m_frmSearchReplace) {
         instantiateFrmSearchReplace();
     }
+
+    QStringList sel = currentEditor()->selectedTexts();
+    if (sel.length() > 0 && sel[0].length() > 0) {
+        m_frmSearchReplace->setSearchText(sel[0]);
+    }
+
     m_frmSearchReplace->show(frmSearchReplace::TabSearch);
     m_frmSearchReplace->activateWindow();
 }
@@ -1197,6 +1284,12 @@ void MainWindow::on_actionReplace_triggered()
     if (!m_frmSearchReplace) {
         instantiateFrmSearchReplace();
     }
+
+    QStringList sel = currentEditor()->selectedTexts();
+    if (sel.length() > 0 && sel[0].length() > 0) {
+        m_frmSearchReplace->setSearchText(sel[0]);
+    }
+
     m_frmSearchReplace->show(frmSearchReplace::TabReplace);
     m_frmSearchReplace->activateWindow();
 }
@@ -1341,7 +1434,7 @@ void MainWindow::on_documentReloaded(EditorTabWidget *tabWidget, int tab)
     }
 }
 
-void MainWindow::on_documentLoaded(EditorTabWidget *tabWidget, int tab)
+void MainWindow::on_documentLoaded(EditorTabWidget *tabWidget, int tab, bool wasAlreadyOpened)
 {
     Editor *editor = tabWidget->editor(tab);
 
@@ -1364,8 +1457,11 @@ void MainWindow::on_documentLoaded(EditorTabWidget *tabWidget, int tab)
 
     updateRecentDocsInMenu();
 
-
-    checkIndentationMode(editor);
+    if (!wasAlreadyOpened) {
+        if (m_settings->value("warnForDifferentIndentation", true).toBool()) {
+            checkIndentationMode(editor);
+        }
+    }
 }
 
 void MainWindow::checkIndentationMode(Editor *editor)
@@ -1827,6 +1923,12 @@ void MainWindow::on_actionFind_in_Files_triggered()
     if (!m_frmSearchReplace) {
         instantiateFrmSearchReplace();
     }
+
+    QStringList sel = currentEditor()->selectedTexts();
+    if (sel.length() > 0 && sel[0].length() > 0) {
+        m_frmSearchReplace->setSearchText(sel[0]);
+    }
+
     m_frmSearchReplace->show(frmSearchReplace::TabSearchInFiles);
     m_frmSearchReplace->activateWindow();
 }
@@ -1848,6 +1950,10 @@ void MainWindow::on_resultMatchClicked(const FileSearchResult::FileResult &file,
                               m_topEditorContainer->currentTabWidget());
 
     QPair<int, int> pos = m_docEngine->findOpenEditorByUrl(url);
+
+    if (pos.first == -1 || pos.second == -1)
+        return;
+
     EditorTabWidget *tabW = m_topEditorContainer->tabWidget(pos.first);
     Editor *editor = tabW->editor(pos.second);
 
@@ -1889,4 +1995,31 @@ void MainWindow::on_actionSpace_to_TAB_All_triggered()
 void MainWindow::on_actionSpace_to_TAB_Leading_triggered()
 {
     currentEditor()->sendMessage("C_CMD_SPACE_TO_TAB_LEADING");
+}
+
+void MainWindow::on_actionGo_to_line_triggered()
+{
+    Editor *editor = currentEditor();
+    int currentLine = editor->cursorPosition().first;
+    int lines = editor->lineCount();
+    frmLineNumberChooser *frm = new frmLineNumberChooser(1, lines, currentLine + 1, this);
+    if (frm->exec() == QDialog::Accepted) {
+        int line = frm->value();
+        editor->setSelection(line - 1, 0, line - 1, 0);
+    }
+}
+
+void MainWindow::on_actionInstall_Extension_triggered()
+{
+    QString file = QFileDialog::getOpenFileName(this, tr("Extension"), QString(), "Notepadqq extensions (*.nqqext)");
+    if (!file.isNull()) {
+        Extensions::InstallExtension *installExt = new Extensions::InstallExtension(file, this);
+        installExt->exec();
+        installExt->deleteLater();
+    }
+}
+
+void MainWindow::showExtensionsMenu(bool show)
+{
+    ui->menuExtensions->menuAction()->setVisible(show);
 }

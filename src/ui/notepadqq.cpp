@@ -1,4 +1,6 @@
 #include "include/notepadqq.h"
+#include "include/Extensions/extensionsloader.h"
+#include "include/Extensions/runtimesupport.h"
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QDir>
@@ -12,20 +14,44 @@ bool Notepadqq::m_oldQt = false;
 
 QString Notepadqq::copyright()
 {
-    return QObject::trUtf8("Copyright © 2010-2014, Daniele Di Sarli");
+    return QObject::trUtf8("Copyright © 2010-2015, Daniele Di Sarli");
+}
+
+QString Notepadqq::appDataPath(QString fileName)
+{
+    QString def = QString("%1/../appdata/").
+            arg(qApp->applicationDirPath());
+
+    if(!QDir(def).exists())
+        def = QString("%1/../../share/%2/").
+                arg(qApp->applicationDirPath()).
+                arg(qApp->applicationName().toLower());
+
+    if (!fileName.isNull()) {
+        def.append(fileName);
+    }
+
+    return def;
 }
 
 QString Notepadqq::editorPath()
 {
-    QString def = QString("%1/../appdata/editor/index.html").
-            arg(qApp->applicationDirPath());
+    return appDataPath("editor/index.html");
+}
 
-    if(!QFile(def).exists())
-        def = QString("%1/../../share/%2/editor/index.html").
-                arg(qApp->applicationDirPath()).
-                arg(qApp->applicationName().toLower());
+QString Notepadqq::extensionToolsPath()
+{
+    return appDataPath("extension_tools");
+}
 
-    return def;
+QString Notepadqq::nodejsPath() {
+    QSettings s;
+    return s.value("Extensions/Runtime_Nodejs", "").toString();
+}
+
+QString Notepadqq::npmPath() {
+    QSettings s;
+    return s.value("Extensions/Runtime_Npm", "").toString();
 }
 
 QString Notepadqq::fileNameFromUrl(const QUrl &url)
@@ -42,9 +68,11 @@ QString Notepadqq::fileNameFromUrl(const QUrl &url)
                      ).fileName();
 }
 
-QCommandLineParser *Notepadqq::getCommandLineArgumentsParser(const QStringList &arguments)
+QSharedPointer<QCommandLineParser> Notepadqq::getCommandLineArgumentsParser(const QStringList &arguments)
 {
-    QCommandLineParser *parser = new QCommandLineParser();
+    QSharedPointer<QCommandLineParser> parser =
+            QSharedPointer<QCommandLineParser>(new QCommandLineParser());
+
     parser->setApplicationDescription("Text editor for developers");
     parser->addHelpOption();
     parser->addVersionOption();
@@ -109,4 +137,12 @@ void Notepadqq::showQtVersionWarning(bool showCheckBox, QWidget *parent)
         settings.setValue("checkQtVersionAtStartup", !chkDontShowAgain->isChecked());
         chkDontShowAgain->deleteLater();
     }
+}
+
+QString Notepadqq::extensionsPath()
+{
+    QSettings settings;
+
+    QFileInfo f = QFileInfo(settings.fileName());
+    return f.absoluteDir().absoluteFilePath("extensions");
 }

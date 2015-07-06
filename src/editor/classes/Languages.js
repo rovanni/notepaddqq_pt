@@ -17,6 +17,20 @@ var Languages = new function() {
             fileExtensions: ["apl"]
         },
 
+        "asn.1": {
+            name: "ASN.1",
+            mode: "asn.1",
+            mime: "text/x-ttcn-asn",
+            fileExtensions: []
+        },
+
+        "pgp": {
+            name: "PGP",
+            mode: "asciiarmor",
+            mime: "application/pgp",
+            fileExtensions: ["pgp"]
+        },
+
         "asterisk": {
             name: "Asterisk",
             mode: "asterisk",
@@ -29,7 +43,7 @@ var Languages = new function() {
             name: "C",
             mode: "clike",
             mime: "text/x-csrc",
-            fileExtensions: ["c", "h", "i"]
+            fileExtensions: ["c", "h", "i", "xbm", "xpm"]
         },
 
         "cpp": {
@@ -74,6 +88,14 @@ var Languages = new function() {
             fileExtensions: ["clj", "cljs", "cljx"]
         },
 
+        "cmake": {
+            name: "CMake",
+            mode: "cmake",
+            mime: "text/x-cmake",
+            fileExtensions: ["cmake", "cmake.in"],
+            fileNames: ["CMakeLists.txt"]
+        },
+
         "coffeescript": {
             name: "CoffeeScript",
             mode: "coffeescript",
@@ -94,6 +116,13 @@ var Languages = new function() {
             mode: "cypher",
             mime: "application/x-cypher-query",
             fileExtensions: ["cyp", "cypher"]
+        },
+
+        "cython": {
+            name: "Cython",
+            mode: "python",
+            mime: "text/x-cython",
+            fileExtensions: ["pyx", "pxd", "pxi"]
         },
 
         "css": {
@@ -186,6 +215,13 @@ var Languages = new function() {
             mode: "erlang",
             mime: "text/x-erlang",
             fileExtensions: ["erl", "hrl"]
+        },
+
+        "forth": {
+            name: "Forth",
+            mode: "forth",
+            mime: "text/x-forth",
+            fileExtensions: ["forth", "fth", "4th"]
         },
 
         "fortran": {
@@ -377,6 +413,14 @@ var Languages = new function() {
             fileExtensions: ["lua"]
         },
 
+        "m4": {
+            name: "m4",
+            mode: "m4",
+            mime: "application/x-m4",
+            fileExtensions: ["m4"],
+            fileNames: ["configure.ac"]
+        },
+
         "makefile": {
             name: "Makefile",
             mode: "makefile",
@@ -403,6 +447,13 @@ var Languages = new function() {
             name: "Modelica",
             mode: "modelica",
             mime: "text/x-modelica",
+            fileExtensions: ["mo"]
+        },
+
+        "mumps": {
+            name: "MUMPS",
+            mode: "mumps",
+            mime: "text/x-mumps",
             fileExtensions: ["mo"]
         },
 
@@ -495,15 +546,8 @@ var Languages = new function() {
             name: "Python",
             mode: "python",
             mime: "text/x-python",
-            fileExtensions: ["py", "pyd", "pyw", "wsgi"],
+            fileExtensions: ["py", "pyd", "pyw", "vpy", "wsgi"],
             firstNonBlankLine: [/^#!.*\/python[\d\.]*($| )/, /^#!\/usr\/bin\/env python[\d\.]*($| )/]
-        },
-
-        "cython": {
-            name: "Cython",
-            mode: "python",
-            mime: "text/x-cython",
-            fileExtensions: ["pyx", "pxi", "pxd"]
         },
 
         "puppet": {
@@ -619,13 +663,6 @@ var Languages = new function() {
             fileExtensions: ["tpl"]
         },
 
-        "smartymixed": {
-            name: "SmartyMixed",
-            mode: "smartymixed",
-            mime: "text/x-smarty",
-            fileExtensions: []
-        },
-
         "solr": {
             name: "Solr",
             mode: "solr",
@@ -666,6 +703,13 @@ var Languages = new function() {
             mode: "sql",
             mime: "text/x-mariadb",
             fileExtensions: []
+        },
+
+        "mathematica": {
+            name: "Mathematica",
+            mode: "mathematica",
+            mime: "text/x-mathematica",
+            fileExtensions: ["m", "nb"]
         },
 
         "stex": {
@@ -738,6 +782,27 @@ var Languages = new function() {
             fileExtensions: []
         },
 
+        "troff": {
+            name: "troff",
+            mode: "troff",
+            mime: "troff",
+            fileExtensions: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        },
+
+        "ttcn": {
+            name: "TTCN",
+            mode: "ttcn",
+            mime: "text/x-ttcn",
+            fileExtensions: []
+        },
+
+        "ttcn-cfg": {
+            name: "TTCN-CFG",
+            mode: "ttcn-cfg",
+            mime: "text/x-ttcn-cfg",
+            fileExtensions: []
+        },
+
         "vb": {
             name: "VB.NET",
             mode: "vb",
@@ -785,7 +850,7 @@ var Languages = new function() {
             name: "YAML",
             mode: "yaml",
             mime: "text/x-yaml",
-            fileExtensions: ["yml", "yaml"]
+            fileExtensions: ["yaml", "yml"]
         },
 
         "z80": {

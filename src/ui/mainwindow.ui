@@ -56,6 +56,7 @@
     </widget>
     <addaction name="action_New"/>
     <addaction name="action_Open"/>
+    <addaction name="actionOpen_Folder"/>
     <addaction name="actionReload_from_Disk"/>
     <addaction name="actionSave"/>
     <addaction name="actionSave_as"/>
@@ -155,6 +156,8 @@
     <addaction name="actionFind_Previous"/>
     <addaction name="separator"/>
     <addaction name="actionReplace"/>
+    <addaction name="separator"/>
+    <addaction name="actionGo_to_line"/>
    </widget>
    <widget class="QMenu" name="menu_View">
     <property name="title">
@@ -271,6 +274,13 @@
     </property>
     <addaction name="actionOpen_a_New_Window"/>
    </widget>
+   <widget class="QMenu" name="menuExtensions">
+    <property name="title">
+     <string>Extensions</string>
+    </property>
+    <addaction name="actionInstall_Extension"/>
+    <addaction name="separator"/>
+   </widget>
    <addaction name="menu_File"/>
    <addaction name="menu_Edit"/>
    <addaction name="menu_Search"/>
@@ -280,10 +290,14 @@
    <addaction name="menuSe_ttings"/>
    <addaction name="menuMacro"/>
    <addaction name="menuRun"/>
+   <addaction name="menuExtensions"/>
    <addaction name="menu_Window"/>
    <addaction name="menu"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
+   <property name="windowTitle">
+    <string>Toolbar</string>
+   </property>
    <property name="iconSize">
     <size>
      <width>16</width>
@@ -985,6 +999,24 @@
   <action name="actionSpace_to_TAB_Leading">
    <property name="text">
     <string>Space to TAB (Leading)</string>
+   </property>
+  </action>
+  <action name="actionOpen_Folder">
+   <property name="text">
+    <string>Open Folder...</string>
+   </property>
+  </action>
+  <action name="actionGo_to_line">
+   <property name="text">
+    <string>Go to line...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+G</string>
+   </property>
+  </action>
+  <action name="actionInstall_Extension">
+   <property name="text">
+    <string>Install Extension...</string>
    </property>
   </action>
  </widget>

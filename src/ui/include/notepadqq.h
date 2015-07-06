@@ -33,27 +33,51 @@
 #include <QList>
 #include "include/mainwindow.h"
 
-#define POINTVERSION "0.44.1" // major.minor.revision
+#define POINTVERSION "0.50.1" // major.minor.revision
 
 #define MIB_UTF_8 106
 
-class Notepadqq
+/**
+ * @brief Global information and utility functions.
+ */
+class Notepadqq : public QObject
 {
+    Q_OBJECT
 public:
+
+    static Notepadqq& getInstance()
+    {
+        static Notepadqq instance;
+        return instance;
+    }
+
     static const QString version;
     static const QString contributorsUrl;
     static const QString website;
     static QString copyright();
+    static QString appDataPath(QString fileName = QString());
     static QString editorPath();
+    static QString extensionToolsPath();
+    static QString nodejsPath();
+    static QString npmPath();
     static QString fileNameFromUrl(const QUrl &url);
-    static QCommandLineParser *getCommandLineArgumentsParser(const QStringList &arguments);
+    static QSharedPointer<QCommandLineParser> getCommandLineArgumentsParser(const QStringList &arguments);
 
     static bool oldQt();
     static void setOldQt(bool oldQt);
 
     static void showQtVersionWarning(bool showCheckBox, QWidget *parent = 0);
 
+    static QString extensionsPath();
+
+signals:
+    void newWindow(MainWindow *window);
+
 private:
+    Notepadqq() {}
+    Notepadqq(Notepadqq const&);      // Don't implement
+    void operator=(Notepadqq const&); // Don't implement
+
     static bool m_oldQt;
 };
 

@@ -3,6 +3,8 @@
 #include "ui_frmpreferences.h"
 #include "include/EditorNS/editor.h"
 #include "include/mainwindow.h"
+#include "include/Extensions/extensionsloader.h"
+#include <QFileDialog>
 
 frmPreferences::frmPreferences(TopEditorContainer *topEditorContainer, QWidget *parent) :
     QDialog(parent),
@@ -12,10 +14,10 @@ frmPreferences::frmPreferences(TopEditorContainer *topEditorContainer, QWidget *
 {
     ui->setupUi(this);
 
-    setFixedSize(this->width(), this->height());
-    setWindowFlags((windowFlags() | Qt::CustomizeWindowHint) & ~Qt::WindowMaximizeButtonHint);
+    //setFixedSize(this->width(), this->height());
+    //setWindowFlags((windowFlags() | Qt::CustomizeWindowHint) & ~Qt::WindowMaximizeButtonHint);
 
-    m_previewEditor = Editor::getNewEditor(this);
+    m_previewEditor = Editor::getNewEditorUnmanagedPtr(this);
     m_previewEditor->setLanguageFromFileName("test.js");
     m_previewEditor->setValue(R"(var enabled = false;)" "\n"
                               R"()" "\n"
@@ -35,11 +37,15 @@ frmPreferences::frmPreferences(TopEditorContainer *topEditorContainer, QWidget *
     QSettings s;
 
     ui->chkCheckQtVersionAtStartup->setChecked(s.value("checkQtVersionAtStartup", true).toBool());
+    ui->chkWarnForDifferentIndentation->setChecked(s.value("warnForDifferentIndentation", true).toBool());
 
     loadLanguages(&s);
     loadColorSchemes(&s);
 
     ui->chkSearch_SearchAsIType->setChecked(s.value("Search/SearchAsIType", true).toBool());
+
+    ui->txtNodejs->setText(s.value("Extensions/Runtime_Nodejs", "").toString());
+    ui->txtNpm->setText(s.value("Extensions/Runtime_Npm", "").toString());
 }
 
 frmPreferences::~frmPreferences()
@@ -62,12 +68,20 @@ void frmPreferences::on_buttonBox_accepted()
 {
     QSettings s;
     s.setValue("checkQtVersionAtStartup", ui->chkCheckQtVersionAtStartup->isChecked());
+    s.setValue("warnForDifferentIndentation", ui->chkWarnForDifferentIndentation->isChecked());
 
     saveLanguages(&s);
     saveColorScheme(&s);
 
+    s.setValue("Search/SearchAsIType", ui->chkSearch_SearchAsIType->isChecked());
+
+    s.setValue("Extensions/Runtime_Nodejs", ui->txtNodejs->text());
+    s.setValue("Extensions/Runtime_Npm", ui->txtNpm->text());
+
     // Apply changes to currently opened editors
     for (MainWindow *w : MainWindow::instances()) {
+        w->showExtensionsMenu(Extensions::ExtensionsLoader::extensionRuntimePresent());
+
         w->topEditorContainer()->forEachEditor([&](const int, const int, EditorTabWidget *, Editor *editor) {
 
             // Reset language-dependent settings (e.g. tab settings)
@@ -87,8 +101,6 @@ void frmPreferences::on_buttonBox_accepted()
             return true;
         });
     }
-
-    s.setValue("Search/SearchAsIType", ui->chkSearch_SearchAsIType->isChecked());
 
     accept();
 }
@@ -264,4 +276,46 @@ void frmPreferences::on_cmbColorScheme_currentIndexChanged(int /*index*/)
     QMap<QString, QVariant> selected = ui->cmbColorScheme->currentData().toMap();
     QString name = selected.value("name").toString();
     m_previewEditor->setTheme(Editor::themeFromName(name));
+}
+
+bool frmPreferences::extensionBrowseRuntime(QLineEdit *lineEdit)
+{
+    QString fn = QFileDialog::getOpenFileName(this, tr("Browse"), lineEdit->text());
+    if (fn.isNull()) {
+        return false;
+    } else {
+        lineEdit->setText(fn);
+        return true;
+    }
+}
+
+void frmPreferences::checkExecutableExists(QLineEdit *path)
+{
+    QPalette palette;
+    QFileInfo fi(path->text());
+
+    if (!(fi.isFile() && fi.isExecutable())) {
+        palette.setColor(QPalette::ColorRole::Text, Qt::GlobalColor::red);
+    }
+    path->setPalette(palette);
+}
+
+void frmPreferences::on_btnNodejsBrowse_clicked()
+{
+    extensionBrowseRuntime(ui->txtNodejs);
+}
+
+void frmPreferences::on_btnNpmBrowse_clicked()
+{
+    extensionBrowseRuntime(ui->txtNpm);
+}
+
+void frmPreferences::on_txtNodejs_textChanged(const QString &)
+{
+    checkExecutableExists(ui->txtNodejs);
+}
+
+void frmPreferences::on_txtNpm_textChanged(const QString &)
+{
+    checkExecutableExists(ui->txtNpm);
 }
