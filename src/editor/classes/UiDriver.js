@@ -96,10 +96,12 @@ var UiDriver = new function() {
 
     this.messageReceived = function(msg) {
         var data;
-        if (usingQtWebChannel())
-            data = channel.objects.cpp_ui_driver.getMsgData();
-        else
+        if (usingQtWebChannel()) {
+            data = channel.objects.cpp_ui_driver.getMsgData(); // FIXME Must be async!!!
+            // channel.objects.cpp_ui_driver.getMsgData(function(data) {   });
+        } else {
             data = cpp_ui_driver.getMsgData();
+        }
 
         // Only one of the handlers (the last that gets
         // called) can return a value. So, to each handler
