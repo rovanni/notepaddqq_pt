@@ -33,7 +33,9 @@
 #include <QList>
 #include "include/mainwindow.h"
 
-#define POINTVERSION "0.50.1" // major.minor.revision
+#define POINTVERSION "0.51.0" // major.minor.revision
+
+#define COPYRIGHT_YEAR "2016"
 
 #define MIB_UTF_8 106
 
@@ -69,6 +71,8 @@ public:
     static void showQtVersionWarning(bool showCheckBox, QWidget *parent = 0);
 
     static QString extensionsPath();
+
+    static QList<QString> translations();
 
 signals:
     void newWindow(MainWindow *window);

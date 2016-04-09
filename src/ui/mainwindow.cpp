@@ -60,6 +60,8 @@ MainWindow::MainWindow(const QString &workingDirectory, const QStringList &argum
     m_tabContextMenu = new QMenu(this);
     QAction *separator = new QAction(this);
     separator->setSeparator(true);
+    QAction *separatorBottom = new QAction(this);
+    separatorBottom->setSeparator(true);
     m_tabContextMenuActions.append(ui->actionClose);
     m_tabContextMenuActions.append(ui->actionClose_All_BUT_Current_Document);
     m_tabContextMenuActions.append(ui->actionSave);
@@ -67,6 +69,10 @@ MainWindow::MainWindow(const QString &workingDirectory, const QStringList &argum
     m_tabContextMenuActions.append(ui->actionRename);
     m_tabContextMenuActions.append(ui->actionPrint);
     m_tabContextMenuActions.append(separator);
+    m_tabContextMenuActions.append(ui->actionCurrent_Full_File_path_to_Clipboard);
+    m_tabContextMenuActions.append(ui->actionCurrent_Filename_to_Clipboard);
+    m_tabContextMenuActions.append(ui->actionCurrent_Directory_Path_to_Clipboard);
+    m_tabContextMenuActions.append(separatorBottom);
     m_tabContextMenuActions.append(ui->actionMove_to_Other_View);
     m_tabContextMenuActions.append(ui->actionClone_to_Other_View);
     m_tabContextMenuActions.append(ui->actionMove_to_New_Window);
@@ -135,6 +141,8 @@ MainWindow::MainWindow(const QString &workingDirectory, const QStringList &argum
     }
 
     restoreWindowSettings();
+
+    ui->actionFull_Screen->setChecked(isFullScreen());
 
     ui->dockFileSearchResults->hide();
 
@@ -471,7 +479,29 @@ void MainWindow::on_editorUrlsDropped(QList<QUrl> urls)
 void MainWindow::keyPressEvent(QKeyEvent *ev)
 {
     if (ev->key() == Qt::Key_Insert) {
-        toggleOverwrite();
+        if (QApplication::keyboardModifiers().testFlag(Qt::ShiftModifier)) {
+            on_action_Paste_triggered();
+        } else if (QApplication::keyboardModifiers().testFlag(Qt::ControlModifier)) {
+            on_action_Copy_triggered();
+        } else {
+            toggleOverwrite();
+        }
+    } else if (ev->key() >= Qt::Key_1 && ev->key() <= Qt::Key_9
+               && QApplication::keyboardModifiers().testFlag(Qt::AltModifier)) {
+        m_topEditorContainer->currentTabWidget()->setCurrentIndex(ev->key() - Qt::Key_1);
+    } else if (QApplication::keyboardModifiers().testFlag(Qt::ControlModifier)
+               && ev->key() == Qt::Key_PageDown) {
+        // switch to the next tab to the right or wrap around if last
+        EditorTabWidget *curTabWidget = m_topEditorContainer->currentTabWidget();
+        int nextTabIndex = (curTabWidget->currentIndex() + 1) % curTabWidget->count();
+        curTabWidget->setCurrentIndex(nextTabIndex);
+    } else if (QApplication::keyboardModifiers().testFlag(Qt::ControlModifier)
+               && ev->key() == Qt::Key_PageUp) {
+        // switch to the previous tab or wrap around if first
+        EditorTabWidget *curTabWidget = m_topEditorContainer->currentTabWidget();
+        int prevTabIndex = (curTabWidget->currentIndex() + curTabWidget->count() - 1)
+                            % curTabWidget->count();
+        curTabWidget->setCurrentIndex(prevTabIndex);
     } else {
         QMainWindow::keyPressEvent(ev);
     }
@@ -1943,6 +1973,17 @@ void MainWindow::on_actionDuplicate_Line_triggered()
     currentEditor()->sendMessage("C_CMD_DUPLICATE_LINE");
 }
 
+void MainWindow::on_actionMove_Line_Up_triggered()
+{
+    currentEditor()->sendMessage("C_CMD_MOVE_LINE_UP");
+}
+
+void MainWindow::on_actionMove_Line_Down_triggered()
+{
+    //currentEditor()->sendMessage("C_CMD_MOVE_LINE_DOWN");
+    currentEditor()->sendMessage("C_CMD_MOVE_LINE_DOWN");
+}
+
 void MainWindow::on_resultMatchClicked(const FileSearchResult::FileResult &file, const FileSearchResult::Result &match)
 {
     QUrl url = stringToUrl(file.fileName);
@@ -2022,4 +2063,20 @@ void MainWindow::on_actionInstall_Extension_triggered()
 void MainWindow::showExtensionsMenu(bool show)
 {
     ui->menuExtensions->menuAction()->setVisible(show);
+}
+
+void MainWindow::on_actionFull_Screen_toggled(bool on)
+{
+    static bool maximized = isMaximized();
+
+    if (on) {
+        maximized = isMaximized();
+        showFullScreen();
+    } else {
+        if (maximized) {
+            showMaximized();
+        } else {
+            showNormal();
+        }
+    }
 }

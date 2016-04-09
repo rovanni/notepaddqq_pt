@@ -15,7 +15,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="resources.qrc">
-    <normaloff>:/icons/default/scalable/notepadqq.svg</normaloff>:/icons/default/scalable/notepadqq.svg</iconset>
+    <normaloff>:/icons/notepadqq/scalable/notepadqq.svg</normaloff>:/icons/notepadqq/scalable/notepadqq.svg</iconset>
   </property>
   <property name="documentMode">
    <bool>true</bool>
@@ -116,6 +116,8 @@
      </property>
      <addaction name="actionDuplicate_Line"/>
      <addaction name="actionDelete_Line"/>
+     <addaction name="actionMove_Line_Up" />
+     <addaction name="actionMove_Line_Down"/>
     </widget>
     <widget class="QMenu" name="menuBlank_Operations">
      <property name="title">
@@ -198,6 +200,8 @@
     <addaction name="actionWord_wrap"/>
     <addaction name="separator"/>
     <addaction name="actionText_Direction_RTL"/>
+    <addaction name="separator"/>
+    <addaction name="actionFull_Screen"/>
    </widget>
    <widget class="QMenu" name="menuEncoding">
     <property name="title">
@@ -642,17 +646,17 @@
   </action>
   <action name="actionCurrent_Full_File_path_to_Clipboard">
    <property name="text">
-    <string>Current Full File Path to Clipboard</string>
+    <string>Copy Full Path to Clipboard</string>
    </property>
   </action>
   <action name="actionCurrent_Filename_to_Clipboard">
    <property name="text">
-    <string>Current Filename to Clipboard</string>
+    <string>Copy Filename to Clipboard</string>
    </property>
   </action>
   <action name="actionCurrent_Directory_Path_to_Clipboard">
    <property name="text">
-    <string>Current Directory Path to Clipboard</string>
+    <string>Copy Directory to Clipboard</string>
    </property>
   </action>
   <action name="actionZoom_In">
@@ -960,6 +964,28 @@
     <string>Ctrl+D</string>
    </property>
   </action>
+  <action name="actionMove_Line_Up">
+   <property name="text">
+    <string>Move Line Up</string>
+   </property>
+   <property name="toolTip">
+    <string>Move the current line up</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+Up</string>
+   </property>
+  </action>
+  <action name="actionMove_Line_Down">
+   <property name="text">
+    <string>Move Line Down</string>
+   </property>
+   <property name="toolTip">
+    <string>Move the current line down</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+Down</string>
+   </property>
+  </action>
   <action name="actionTrim_Trailing_Space">
    <property name="text">
     <string>Trim Trailing Space</string>
@@ -1017,6 +1043,17 @@
   <action name="actionInstall_Extension">
    <property name="text">
     <string>Install Extension...</string>
+   </property>
+  </action>
+  <action name="actionFull_Screen">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Full Screen</string>
+   </property>
+   <property name="shortcut">
+    <string>F11</string>
    </property>
   </action>
  </widget>
