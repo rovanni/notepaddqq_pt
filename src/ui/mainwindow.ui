@@ -116,7 +116,7 @@
      </property>
      <addaction name="actionDuplicate_Line"/>
      <addaction name="actionDelete_Line"/>
-     <addaction name="actionMove_Line_Up" />
+     <addaction name="actionMove_Line_Up"/>
      <addaction name="actionMove_Line_Down"/>
     </widget>
     <widget class="QMenu" name="menuBlank_Operations">
@@ -241,20 +241,6 @@
     <addaction name="actionAbout_Qt"/>
     <addaction name="actionAbout_Notepadqq"/>
    </widget>
-   <widget class="QMenu" name="menuMacro">
-    <property name="title">
-     <string>Macro</string>
-    </property>
-    <addaction name="action_Start_Recording"/>
-    <addaction name="action_Stop_Recording"/>
-    <addaction name="action_Playback"/>
-    <addaction name="actionSave_Currently_Recorded_Macro"/>
-    <addaction name="actionRun_a_Macro_Multiple_Times"/>
-    <addaction name="separator"/>
-    <addaction name="actionTrim_Trailing_and_save"/>
-    <addaction name="separator"/>
-    <addaction name="actionModify_Shortcut_Delete_Macro"/>
-   </widget>
    <widget class="QMenu" name="menuRun">
     <property name="title">
      <string>Run</string>
@@ -292,7 +278,6 @@
    <addaction name="menuEncoding"/>
    <addaction name="menu_Language"/>
    <addaction name="menuSe_ttings"/>
-   <addaction name="menuMacro"/>
    <addaction name="menuRun"/>
    <addaction name="menuExtensions"/>
    <addaction name="menu_Window"/>
@@ -707,6 +692,9 @@
    <property name="text">
     <string>&amp;Start Recording</string>
    </property>
+   <property name="visible">
+    <bool>false</bool>
+   </property>
   </action>
   <action name="action_Stop_Recording">
    <property name="enabled">
@@ -714,6 +702,9 @@
    </property>
    <property name="text">
     <string>&amp;Stop Recording</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
   <action name="action_Playback">
@@ -723,6 +714,9 @@
    <property name="text">
     <string>&amp;Playback</string>
    </property>
+   <property name="visible">
+    <bool>false</bool>
+   </property>
   </action>
   <action name="actionSave_Currently_Recorded_Macro">
    <property name="enabled">
@@ -731,10 +725,16 @@
    <property name="text">
     <string>Save Currently Recorded Macro</string>
    </property>
+   <property name="visible">
+    <bool>false</bool>
+   </property>
   </action>
   <action name="actionRun_a_Macro_Multiple_Times">
    <property name="text">
     <string>Run a Macro Multiple Times...</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
   <action name="actionTrim_Trailing_and_save">
