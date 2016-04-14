@@ -34,94 +34,27 @@ namespace EditorNS
 
     QVariant CustomQWebView::evaluateJavaScript(const QString &expr)
     {
-        static int cnt = 0;
-        cnt++;
-        qDebug() << QString::number(cnt) + " <------------- COUNT";
 #ifdef USE_QTWEBENGINE
+        static int __uniqueRequestCounter = 0;
+        __uniqueRequestCounter++;
 
-        //if (expr.startsWith("UiDriver.connectSocket(")) {
-            // Special case: CustomQWebView::JavascriptEvaluated doesn't get fired when connecting socket.
-        //    page()->runJavaScript(expr);
-        //    emit JavascriptEvaluated();
-        //    return QVariant();
-        //} else {
+        QEventLoop loop;
+        int currId = __uniqueRequestCounter;
+        connect(this, &CustomQWebView::JavascriptEvaluated, &loop, [currId, &loop](int requestId) {
+            if (requestId == __uniqueRequestCounter) {
+                loop.quit();
+            }
+        });
 
-            QEventLoop loop;
-            int currId = cnt;
-            connect(this, &CustomQWebView::JavascriptEvaluated, &loop, [currId, &loop](int requestId) {
-                if (requestId == cnt) {
-                    loop.quit();
-                }
-            });
-               // &QEventLoop::quit);
+        QVariant result;
+        page()->runJavaScript(expr, [&, currId](const QVariant &_result) {
+            result = _result;
+            emit JavascriptEvaluated(currId);
+        });
 
-            //QByteArray *byteArray = new QByteArray();
-            //QJsonDocument doc;
-            QVariant _result;
-            //QString json_result
-            page()->runJavaScript(expr, [&, currId](const QVariant &result) {
-                // Serialize result to byteArray
+        loop.exec();
 
-                /*qDebug() << "      ~~ follows: ";
-                qDebug() << expr;
-                qDebug() << "      ~~ result: ";
-                qDebug() << result;*/
-
-                /*QString msgData = "null";
-                QJsonValue jsonData = QJsonValue::fromVariant(result);
-                if (jsonData.isArray()) {
-                    msgData = QJsonDocument(jsonData.toArray()).toJson();
-                } else if (jsonData.isBool()) {
-                    msgData = jsonData.toBool() ? "true" : "false";
-                } else if (jsonData.isDouble()) {
-                    msgData = QString::number(jsonData.toDouble());
-                } else if (jsonData.isObject()) {
-                    msgData = QString(QJsonDocument(jsonData.toObject()).toJson());
-                } else if (jsonData.isString()) {
-                    msgData = "'" + jsStringEscape(jsonData.toString()) + "'";
-                } else if (jsonData.isUndefined()) {
-                    msgData = "undefined";
-                }
-                qDebug() << result;
-                qDebug() << msgData;
-
-                doc = QJsonDocument::fromJson(msgData.toUtf8());*/
-
-                _result = result;
-
-                //QDataStream dsw(byteArray,QIODevice::WriteOnly);
-                //dsw << result;
-
-
-                /*QBuffer writeBuffer(byteArray);
-                writeBuffer.open(QIODevice::WriteOnly);
-                QDataStream out(&writeBuffer);
-                out << result;
-                writeBuffer.close();*/
-
-                emit JavascriptEvaluated(currId);
-            });
-
-            loop.exec();
-
-            // Deserialize result
-            /*QBuffer readBuffer(byteArray);
-            readBuffer.open(QIODevice::ReadOnly);
-            QDataStream in(&readBuffer);
-            QVariant data;
-            in >> data;*/
-            //QDataStream dsr(byteArray,QIODevice::ReadOnly);
-            //dsr>>data;
-            //QVariant result = doc.toVariant();
-            QVariant result = _result;
-            qDebug() << "      ~~ follows: ";
-            qDebug() << expr;
-            qDebug() << "      ~~ result: ";
-            qDebug() << result;
-
-            //delete byteArray;
-            return result;
-        //}
+        return result;
 #else
         return page()->mainFrame()->evaluateJavaScript(expr);
 #endif

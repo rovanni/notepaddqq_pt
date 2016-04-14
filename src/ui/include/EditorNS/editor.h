@@ -52,10 +52,7 @@ namespace EditorNS
              * @param data Message data
              */
         Q_INVOKABLE void receiveMessage(QString msg, QVariant data) {
-            // FIXME {obj} data types don't get passed from js to cpp
-            qDebug() << "C++: Received: " + msg;
             emit messageReceived(msg, data);
-            qDebug() << "After emit";
         }
 
     signals:

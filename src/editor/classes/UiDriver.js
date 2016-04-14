@@ -44,13 +44,11 @@ var UiDriver = new function() {
     document.addEventListener("DOMContentLoaded", function () {
         new QWebChannel(qt.webChannelTransport, function (_channel) {
             channel = _channel;
-            console.error("DOMContentLoaded, new QWebChannel")
             // Send the messages in the queue
             for (var i = 0; i < msgQueue.length; i++) {
                 _this.sendMessage(msgQueue[i][0], msgQueue[i][1]);
             }
             msgQueue = [];
-            console.error("sent old msgs" + channel.objects.cpp_ui_driver)
         });
     });
 
@@ -63,13 +61,12 @@ var UiDriver = new function() {
                 msgQueue.push([msg, data]);
                 return;
             }
-            console.error("Sending: " + msg + " -- " + JSON.stringify( data ));
+
             if (data !== null && data !== undefined) {
                 channel.objects.cpp_ui_driver.receiveMessage(msg, data, function(ret) { console.error(msg + " sent to c++ (async)") });
             } else {
                 channel.objects.cpp_ui_driver.receiveMessage(msg, "", function(ret) { console.error(msg + " sent to c++ (async)") });
             }
-            console.error("Delivered: " + msg);
         } else {
             // QtWebKit
             cpp_ui_driver.receiveMessage(msg, data);
@@ -84,13 +81,7 @@ var UiDriver = new function() {
     }
 
     this.messageReceived = function(msg, data) {
-        
-        //var data;
-        if (true || usingQtWebChannel()) {
-            console.error("Received: " + msg + "  data: " + data)
-            //data = channel.objects.cpp_ui_driver.getMsgData(); // FIXME Must be async!!!
-            //channel.objects.cpp_ui_driver.getMsgData(function(data) {   });
-        } else {
+        if (!usingQtWebChannel()) {
             data = cpp_ui_driver.getMsgData();
         }
 
@@ -105,7 +96,6 @@ var UiDriver = new function() {
             });
         }
 
-        console.error("Return value for " + msg + ": " + prevReturn);
         return prevReturn;
     }
 }
