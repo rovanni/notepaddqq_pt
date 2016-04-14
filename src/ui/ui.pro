@@ -77,8 +77,6 @@ SOURCES += main.cpp\
     frmindentationmode.cpp \
     singleapplication.cpp \
     localcommunication.cpp \
-    EditorNS/websockettransport.cpp \
-    EditorNS/websocketclientwrapper.cpp \
     Search/filesearchresultswidget.cpp \
     Search/frmsearchreplace.cpp \
     Search/searchinfilesworker.cpp \
@@ -117,8 +115,6 @@ HEADERS  += include/mainwindow.h \
     include/frmindentationmode.h \
     include/singleapplication.h \
     include/localcommunication.h \
-    include/EditorNS/websockettransport.h \
-    include/EditorNS/websocketclientwrapper.h \
     include/Search/filesearchresultswidget.h \
     include/Search/filesearchresult.h \
     include/Search/frmsearchreplace.h \

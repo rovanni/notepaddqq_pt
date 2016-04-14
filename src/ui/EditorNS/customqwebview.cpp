@@ -1,8 +1,10 @@
 #include "include/EditorNS/customqwebview.h"
-#include "include/EditorNS/websocketclientwrapper.h"
 #include <QEventLoop>
 #include <QBuffer>
 #include <QMimeData>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 #ifdef USE_QTWEBENGINE
     #include <QtWebChannel/QWebChannel>
@@ -17,7 +19,11 @@ namespace EditorNS
     CustomQWebView::CustomQWebView(QWidget *parent) :
         WEBVIEWNAME(parent)
     {
+        QWebChannel *channel = new QWebChannel(page());
 
+        // set the web channel to be used by the page
+        // see http://doc.qt.io/qt-5/qwebenginepage.html#setWebChannel
+        page()->setWebChannel(channel);
     }
 
     void CustomQWebView::wheelEvent(QWheelEvent *ev)
@@ -26,29 +32,63 @@ namespace EditorNS
         WEBVIEWNAME::wheelEvent(ev);
     }
 
-    QVariant CustomQWebView::evaluateJavaScript(QString expr)
+    QVariant CustomQWebView::evaluateJavaScript(const QString &expr)
     {
 #ifdef USE_QTWEBENGINE
 
-        if (expr.startsWith("UiDriver.connectSocket(")) {
+        //if (expr.startsWith("UiDriver.connectSocket(")) {
             // Special case: CustomQWebView::JavascriptEvaluated doesn't get fired when connecting socket.
-            page()->runJavaScript(expr);
-            emit JavascriptEvaluated();
-            return QVariant();
-        } else {
+        //    page()->runJavaScript(expr);
+        //    emit JavascriptEvaluated();
+        //    return QVariant();
+        //} else {
 
             QEventLoop loop;
             connect(this, &CustomQWebView::JavascriptEvaluated, &loop, &QEventLoop::quit);
 
-            QByteArray byteArray;
-
+            //QByteArray *byteArray = new QByteArray();
+            //QJsonDocument doc;
+            QVariant _result;
+            //QString json_result
             page()->runJavaScript(expr, [&](const QVariant &result) {
                 // Serialize result to byteArray
-                QBuffer writeBuffer(&byteArray);
+
+                /*qDebug() << "      ~~ follows: ";
+                qDebug() << expr;
+                qDebug() << "      ~~ result: ";
+                qDebug() << result;*/
+
+                /*QString msgData = "null";
+                QJsonValue jsonData = QJsonValue::fromVariant(result);
+                if (jsonData.isArray()) {
+                    msgData = QJsonDocument(jsonData.toArray()).toJson();
+                } else if (jsonData.isBool()) {
+                    msgData = jsonData.toBool() ? "true" : "false";
+                } else if (jsonData.isDouble()) {
+                    msgData = QString::number(jsonData.toDouble());
+                } else if (jsonData.isObject()) {
+                    msgData = QString(QJsonDocument(jsonData.toObject()).toJson());
+                } else if (jsonData.isString()) {
+                    msgData = "'" + jsStringEscape(jsonData.toString()) + "'";
+                } else if (jsonData.isUndefined()) {
+                    msgData = "undefined";
+                }
+                qDebug() << result;
+                qDebug() << msgData;
+
+                doc = QJsonDocument::fromJson(msgData.toUtf8());*/
+
+                _result = result;
+
+                //QDataStream dsw(byteArray,QIODevice::WriteOnly);
+                //dsw << result;
+
+
+                /*QBuffer writeBuffer(byteArray);
                 writeBuffer.open(QIODevice::WriteOnly);
                 QDataStream out(&writeBuffer);
                 out << result;
-                writeBuffer.close();
+                writeBuffer.close();*/
 
                 emit JavascriptEvaluated();
             });
@@ -56,14 +96,23 @@ namespace EditorNS
             loop.exec();
 
             // Deserialize result
-            QBuffer readBuffer(&byteArray);
+            /*QBuffer readBuffer(byteArray);
             readBuffer.open(QIODevice::ReadOnly);
             QDataStream in(&readBuffer);
             QVariant data;
-            in >> data;
+            in >> data;*/
+            //QDataStream dsr(byteArray,QIODevice::ReadOnly);
+            //dsr>>data;
+            //QVariant result = doc.toVariant();
+            QVariant result = _result;
+            qDebug() << "      ~~ follows: ";
+            qDebug() << expr;
+            qDebug() << "      ~~ result: ";
+            qDebug() << result;
 
-            return data;
-        }
+            //delete byteArray;
+            return result;
+        //}
 #else
         return page()->mainFrame()->evaluateJavaScript(expr);
 #endif
@@ -72,27 +121,8 @@ namespace EditorNS
     void CustomQWebView::connectJavaScriptObject(QString name, QObject *obj)
     {
 #ifdef USE_QTWEBENGINE
-        // FIXME Spostare l'inizializzazione del socket nel costruttore!! Qui deve rimanere solo la riga registerObject. Ma anche no: l'inizializzazione deve essere fatta solo quando è documentReady
-
-        // setup the QWebSocketServer
-        QWebSocketServer *server = new QWebSocketServer(QStringLiteral("QWebChannel Notepadqq Server"), QWebSocketServer::NonSecureMode, this);
-        if (!server->listen(QHostAddress::LocalHost, 0)) {
-            qFatal("Failed to open web socket server.");
-            return; // FIXME Return error
-        }
-
-        // wrap WebSocket clients in QWebChannelAbstractTransport objects
-        WebSocketClientWrapper *clientWrapper = new WebSocketClientWrapper(server, this);
-
-        // setup the channel
-        QWebChannel *channel = new QWebChannel(this);
-        QObject::connect(clientWrapper, &WebSocketClientWrapper::clientConnected,
-                         channel, &QWebChannel::connectTo);
-
         // setup the dialog and publish it to the QWebChannel
-        channel->registerObject(name, obj);
-
-        evaluateJavaScript("UiDriver.connectSocket('" + jsStringEscape(server->serverUrl().toString()) + "')");
+        page()->webChannel()->registerObject(name, obj);
 #else
         page()->mainFrame()->
                 addToJavaScriptWindowObject(name, obj);

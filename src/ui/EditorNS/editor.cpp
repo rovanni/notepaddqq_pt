@@ -7,6 +7,9 @@
 #include <QSettings>
 #include <QUrlQuery>
 #include <QRegularExpression>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 #ifdef USE_QTWEBENGINE
     #include <QWebEngineSettings>
@@ -44,7 +47,7 @@ namespace EditorNS
         connect(m_jsToCppProxy,
                 &JsToCppProxy::messageReceived,
                 this,
-                &Editor::on_proxyMessageReceived);
+                &Editor::on_proxyMessageReceived, Qt::QueuedConnection);
 
         m_webView = new CustomQWebView(this);
 
@@ -55,6 +58,7 @@ namespace EditorNS
         QUrl url = QUrl("file://" + Notepadqq::editorPath());
         url.setQuery(query);
 
+        m_webView->connectJavaScriptObject("cpp_ui_driver", m_jsToCppProxy);
         m_webView->setUrl(url);
 
         // To load the page in the background (http://stackoverflow.com/a/10520029):
@@ -87,10 +91,10 @@ namespace EditorNS
         setLayout(m_layout);
 
 #ifdef USE_QTWEBENGINE
-        connect(m_webView->page(),
+        /*connect(m_webView->page(),
                 &QWebEnginePage::loadFinished,
                 this,
-                &Editor::on_javaScriptWindowObjectCleared); // FIXME Usare un nome più utile
+                &Editor::on_javaScriptWindowObjectCleared);*/ // FIXME Usare un nome più utile
 #else
         connect(m_webView->page()->mainFrame(),
                 &QWebFrame::javaScriptWindowObjectCleared,
@@ -369,11 +373,32 @@ namespace EditorNS
     {
         waitAsyncLoad();
 
-        QString funCall = "UiDriver.messageReceived('" +
-                jsStringEscape(msg) + "');";
+        /*QString msgData = (data == 0 || data.isNull() ? "null" : QString(data.toJsonDocument().toJson()));
+        if (msgData.isEmpty() || msgData.isNull()) {
+            msgData = "null";
+        }*/
 
-        m_jsToCppProxy->setMsgData(data);
+        QString msgData = "null";
+        QJsonValue jsonData = QJsonValue::fromVariant(data);
+        if (jsonData.isArray()) {
+            msgData = QJsonDocument(jsonData.toArray()).toJson();
+        } else if (jsonData.isBool()) {
+            msgData = jsonData.toBool() ? "true" : "false";
+        } else if (jsonData.isDouble()) {
+            msgData = QString::number(jsonData.toDouble());
+        } else if (jsonData.isObject()) {
+            msgData = QString(QJsonDocument(jsonData.toObject()).toJson());
+        } else if (jsonData.isString()) {
+            msgData = "'" + jsStringEscape(jsonData.toString()) + "'";
+        } else if (jsonData.isUndefined()) {
+            msgData = "undefined";
+        }
 
+        QString funCall = QString("UiDriver.messageReceived('%1', %2);").arg(jsStringEscape(msg)).arg(msgData);
+
+        //m_jsToCppProxy->setMsgData(data);
+        qDebug() << "----------";
+        qDebug() << funCall;
         return m_webView->evaluateJavaScript(funCall);
     }
 

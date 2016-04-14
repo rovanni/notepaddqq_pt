@@ -36,7 +36,7 @@ namespace EditorNS
              *        be called from the C++ part
              * @param data
              */
-        void setMsgData(QVariant data) { m_msgData = data; }
+        //void setMsgData(QVariant data) { m_msgData = data; }
 
         /**
              * @brief Get the message data set by setMsgData(). This
@@ -53,7 +53,9 @@ namespace EditorNS
              */
         Q_INVOKABLE void receiveMessage(QString msg, QVariant data) {
             // FIXME {obj} data types don't get passed from js to cpp
+            qDebug() << "C++: Received: " + msg;
             emit messageReceived(msg, data);
+            qDebug() << "After emit";
         }
 
     signals:

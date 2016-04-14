@@ -20,7 +20,7 @@ namespace EditorNS
         QString jsStringEscape(QString str) const;
     public:
         explicit CustomQWebView(QWidget *parent = 0);
-        QVariant evaluateJavaScript(QString expr);
+        QVariant evaluateJavaScript(const QString &expr);
         void connectJavaScriptObject(QString name, QObject *obj);
     signals:
         void mouseWheel(QWheelEvent *ev);
