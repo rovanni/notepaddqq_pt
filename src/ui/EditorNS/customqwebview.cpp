@@ -34,6 +34,9 @@ namespace EditorNS
 
     QVariant CustomQWebView::evaluateJavaScript(const QString &expr)
     {
+        static int cnt = 0;
+        cnt++;
+        qDebug() << QString::number(cnt) + " <------------- COUNT";
 #ifdef USE_QTWEBENGINE
 
         //if (expr.startsWith("UiDriver.connectSocket(")) {
@@ -44,13 +47,19 @@ namespace EditorNS
         //} else {
 
             QEventLoop loop;
-            connect(this, &CustomQWebView::JavascriptEvaluated, &loop, &QEventLoop::quit);
+            int currId = cnt;
+            connect(this, &CustomQWebView::JavascriptEvaluated, &loop, [currId, &loop](int requestId) {
+                if (requestId == cnt) {
+                    loop.quit();
+                }
+            });
+               // &QEventLoop::quit);
 
             //QByteArray *byteArray = new QByteArray();
             //QJsonDocument doc;
             QVariant _result;
             //QString json_result
-            page()->runJavaScript(expr, [&](const QVariant &result) {
+            page()->runJavaScript(expr, [&, currId](const QVariant &result) {
                 // Serialize result to byteArray
 
                 /*qDebug() << "      ~~ follows: ";
@@ -90,7 +99,7 @@ namespace EditorNS
                 out << result;
                 writeBuffer.close();*/
 
-                emit JavascriptEvaluated();
+                emit JavascriptEvaluated(currId);
             });
 
             loop.exec();

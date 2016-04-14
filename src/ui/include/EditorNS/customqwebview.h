@@ -24,7 +24,7 @@ namespace EditorNS
         void connectJavaScriptObject(QString name, QObject *obj);
     signals:
         void mouseWheel(QWheelEvent *ev);
-        void JavascriptEvaluated();
+        void JavascriptEvaluated(int requestId);
         void urlsDropped(QList<QUrl> urls);
 
     public slots:
