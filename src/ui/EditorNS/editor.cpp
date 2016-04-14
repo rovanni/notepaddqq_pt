@@ -396,9 +396,6 @@ namespace EditorNS
 
         QString funCall = QString("UiDriver.messageReceived('%1', %2);").arg(jsStringEscape(msg)).arg(msgData);
 
-        //m_jsToCppProxy->setMsgData(data);
-        qDebug() << "----------";
-        qDebug() << funCall;
         return m_webView->evaluateJavaScript(funCall);
     }
 
