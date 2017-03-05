@@ -5,8 +5,8 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QProcess>
-#include <QSettings>
 #include <QDir>
+#include <QDebug>
 
 namespace Extensions {
 

@@ -73,6 +73,11 @@
        </item>
        <item>
         <property name="text">
+         <string>Shortcuts</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
          <string>Extensions</string>
         </property>
        </item>
@@ -81,9 +86,9 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>4</number>
+        <number>0</number>
        </property>
-       <widget class="QWidget" name="page">
+       <widget class="QWidget" name="pageGeneral">
         <layout class="QVBoxLayout" name="verticalLayout_6">
          <property name="topMargin">
           <number>9</number>
@@ -105,6 +110,13 @@
           <widget class="QCheckBox" name="chkWarnForDifferentIndentation">
            <property name="text">
             <string>Warn when the indentation doesn't match the settings</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="chkRememberSession">
+           <property name="text">
+            <string>Remember open tabs when closing Notepadqq</string>
            </property>
           </widget>
          </item>
@@ -137,8 +149,8 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="page_3">
-        <layout class="QVBoxLayout" name="verticalLayout_8" stretch="0,0,1">
+       <widget class="QWidget" name="pageAppearance">
+        <layout class="QVBoxLayout" name="verticalLayout_8" stretch="0,0,0,1">
          <property name="leftMargin">
           <number>9</number>
          </property>
@@ -198,6 +210,97 @@
           </layout>
          </item>
          <item>
+          <layout class="QFormLayout" name="formLayout_3">
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="chkOverrideFontFamily">
+             <property name="text">
+              <string>Override Font Family</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QFontComboBox" name="cmbFontFamilies">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="currentIndex">
+              <number>-1</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QCheckBox" name="chkOverrideFontSize">
+             <property name="text">
+              <string>Override Font Size</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QSpinBox" name="spnFontSize">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimum">
+              <number>6</number>
+             </property>
+             <property name="maximum">
+              <number>28</number>
+             </property>
+             <property name="value">
+              <number>14</number>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QCheckBox" name="chkOverrideLineHeight">
+             <property name="text">
+              <string>Override Line Height</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="spnLineHeight">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="suffix">
+              <string>em</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <double>10.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.300000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
           <widget class="QLabel" name="label_3">
            <property name="text">
             <string>Preview</string>
@@ -233,7 +336,7 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="page_2">
+       <widget class="QWidget" name="pageLanguages">
         <layout class="QVBoxLayout" name="verticalLayout_9">
          <property name="leftMargin">
           <number>9</number>
@@ -342,7 +445,7 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="page_4">
+       <widget class="QWidget" name="pageSearch">
         <layout class="QVBoxLayout" name="verticalLayout_5">
          <property name="topMargin">
           <number>9</number>
@@ -375,7 +478,8 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="page_5">
+       <widget class="QWidget" name="pageShortcuts"/>
+       <widget class="QWidget" name="pageExtensions">
         <layout class="QVBoxLayout" name="verticalLayout_7">
          <property name="leftMargin">
           <number>9</number>
@@ -402,8 +506,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>565</width>
-              <height>388</height>
+              <width>356</width>
+              <height>205</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -514,7 +618,10 @@
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+     <property name="centerButtons">
+      <bool>false</bool>
      </property>
     </widget>
    </item>

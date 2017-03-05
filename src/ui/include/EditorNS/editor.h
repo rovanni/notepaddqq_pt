@@ -160,6 +160,11 @@ namespace EditorNS
         Q_INVOKABLE void setFocus();
 
         /**
+             * @brief Remove the focus from the editor.
+             */
+        Q_INVOKABLE void clearFocus();
+
+        /**
              * @brief Set the file name associated with this editor
              * @param filename full path of the file
              */
@@ -217,12 +222,15 @@ namespace EditorNS
         void clearCustomIndentationMode();
         bool isUsingCustomIndentationMode() const;
 
+        Q_INVOKABLE void setSmartIndent(bool enabled);
         Q_INVOKABLE qreal zoomFactor() const;
         Q_INVOKABLE void setZoomFactor(const qreal &factor);
         Q_INVOKABLE void setSelectionsText(const QStringList &texts, selectMode mode);
         Q_INVOKABLE void setSelectionsText(const QStringList &texts);
         Q_INVOKABLE QString language();
         Q_INVOKABLE void setLineWrap(const bool wrap);
+        Q_INVOKABLE void setEOLVisible(const bool showeol);
+        Q_INVOKABLE void setWhitespaceVisible(const bool showspace);
 
         /**
          * @brief Get the current cursor position
@@ -242,6 +250,14 @@ namespace EditorNS
         void setScrollPosition(const QPair<int, int> &position);
         QString endOfLineSequence() const;
         void setEndOfLineSequence(const QString &endOfLineSequence);
+
+        /**
+         * @brief Applies a font family/size to the Editor.
+         * @param fontFamily the family to be applied. An empty string or
+         *                   nullptr denote no override.
+         * @param fontSize the size to be applied. 0 denotes no override.
+         */
+        void setFont(QString fontFamily, int fontSize, double lineHeight);
 
         QTextCodec *codec() const;
 
@@ -306,7 +322,7 @@ namespace EditorNS
         void fullConstructor(const Theme &theme);
 
         void setIndentationMode(const bool useTabs, const int size);
-        void setIndentationMode(const QString &language);
+        void setIndentationMode(QString language);
 
     private slots:
         void on_javaScriptWindowObjectCleared();

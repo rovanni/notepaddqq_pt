@@ -3,12 +3,16 @@
 
 #include <QDialog>
 #include <QTreeWidgetItem>
-#include "QSettings"
+#include <QTableWidgetItem>
 #include "include/topeditorcontainer.h"
+#include "include/keygrabber.h"
+#include "include/nqqsettings.h"
 
 namespace Ui {
 class frmPreferences;
 }
+
+class QAbstractButton;
 
 class frmPreferences : public QDialog
 {
@@ -32,24 +36,56 @@ private slots:
     void on_btnNpmBrowse_clicked();
     void on_txtNodejs_textChanged(const QString &);
     void on_txtNpm_textChanged(const QString &);
+    void resetSelectedShortcut();
+    void resetAllShortcuts();
+    void on_chkOverrideFontFamily_toggled(bool checked);
+    void on_chkOverrideFontSize_toggled(bool checked);
+    void on_spnFontSize_valueChanged(int arg1);
+    void on_cmbFontFamilies_currentFontChanged(const QFont &f);
+    void on_chkOverrideLineHeight_toggled(bool checked);
+    void on_spnLineHeight_valueChanged(double arg1);
+
+    void on_buttonBox_clicked(QAbstractButton *button);
 
 private:
+    /**
+     * @brief s_lastSelectedTab Contains the index of the last selected preferences tab. Default is 0.
+     */
+    static int s_lastSelectedTab;
+
+    struct LanguageSettings {
+        QString langId;
+        int tabSize;
+        bool indentWithSpaces;
+        bool useDefaultSettings;
+    };
+    QList<LanguageSettings> m_tempLangSettings;
+
+    KeyGrabber *m_keyGrabber;
+
+    NqqSettings& m_settings;
     Ui::frmPreferences *ui;
     TopEditorContainer *m_topEditorContainer;
-    QMap<QString, QVariant> *m_langsTempSettings;
-    QList<QMap<QString, QString>> m_langs;
-    QVariantMap *m_commonLanguageProperties;
     Editor *m_previewEditor;
 
-    void loadLanguages(QSettings *s);
-    void saveLanguages(QSettings *s);
-    void setCurrentLanguageTempValue(QString key, QVariant value);
-    void loadColorSchemes(QSettings *s);
-    void saveColorScheme(QSettings *s);
+    void loadLanguages();
+    void saveLanguages();
+    void loadAppearanceTab();
+    void saveAppearanceTab();
+    void loadTranslations();
+    void saveTranslation();
+    void loadShortcuts();
+    void saveShortcuts();
+
+    /**
+     * @brief applySettings Applies all user-set settings.
+     * @return True if settings were successfully changed
+     */
+    bool applySettings();
+
     bool extensionBrowseRuntime(QLineEdit *lineEdit);
     void checkExecutableExists(QLineEdit *path);
-    void loadTranslations(QSettings *s);
-    void saveTranslation(QSettings *s);
+    void updatePreviewEditorFont();
 };
 
 #endif // FRMPREFERENCES_H

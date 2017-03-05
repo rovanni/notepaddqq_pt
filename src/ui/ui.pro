@@ -18,7 +18,9 @@ greaterThan(QT_MAJOR_VERSION, 4) {
 
 CONFIG += c++11
 
-TARGET = notepadqq-bin
+!macx: TARGET = notepadqq-bin
+macx: TARGET = notepadqq
+
 TEMPLATE = app
 
 RCC_DIR = ../../out/build_data
@@ -29,7 +31,7 @@ OBJECTS_DIR = ../../out/build_data
 QMAKE_CXXFLAGS_WARN_ON += -Wold-style-cast
 
 # clear "rpath" so that we can override Qt lib path via LD_LIBRARY_PATH
-QMAKE_RPATH=
+!macx: QMAKE_RPATH=
 
 # Avoid automatic casts from QString to QUrl
 DEFINES += QT_NO_URL_CAST_FROM_STRING
@@ -40,22 +42,32 @@ win32: CMD_FULLDELETE = del /F /S /Q
 isEmpty(DESTDIR) {
     CONFIG(debug, debug|release) {
         message(Debug build)
-        DESTDIR = ../../out/debug/lib
+        !macx: DESTDIR = ../../out/debug/lib
+        macx: DESTDIR = ../../out/debug
     }
     CONFIG(release, debug|release) {
         message(Release build)
-        DESTDIR = ../../out/release/lib
+        !macx: DESTDIR = ../../out/release/lib
+        macx: DESTDIR = ../../out/release
     }
 }
 
 isEmpty(LRELEASE) {
-    LRELEASE = qtchooser -run-tool=lrelease -qt=5
+    !macx: LRELEASE = qtchooser -run-tool=lrelease -qt=5
+    macx: LRELEASE = lrelease
 }
 
-APPDATADIR = "$$DESTDIR/../appdata"
-BINDIR = "$$DESTDIR/../bin"
+!macx {
+    APPDATADIR = "$$DESTDIR/../appdata"
+    BINDIR = "$$DESTDIR/../bin"
+}
+macx {
+    APPDATADIR = "$$DESTDIR/$${TARGET}.app/Contents/Resources"
+}
 
 INSTALLFILESDIR = ../../support_files
+
+CURRFILE = $$PWD/ui.pro
 
 SOURCES += main.cpp\
     mainwindow.cpp \
@@ -80,6 +92,7 @@ SOURCES += main.cpp\
     Search/filesearchresultswidget.cpp \
     Search/frmsearchreplace.cpp \
     Search/searchinfilesworker.cpp \
+    Search/searchstring.cpp \
     Search/replaceinfilesworker.cpp \
     Search/dlgsearching.cpp \
     Search/searchresultsitemdelegate.cpp \
@@ -94,7 +107,12 @@ SOURCES += main.cpp\
     Extensions/extensionsloader.cpp \
     globals.cpp \
     Extensions/Stubs/menuitemstub.cpp \
-    Extensions/installextension.cpp
+    Extensions/installextension.cpp \
+    keygrabber.cpp \
+    Sessions/sessions.cpp \
+    Sessions/persistentcache.cpp \
+    nqqsettings.cpp \  
+    nqqrun.cpp
 
 HEADERS  += include/mainwindow.h \
     include/topeditorcontainer.h \
@@ -121,6 +139,7 @@ HEADERS  += include/mainwindow.h \
     include/Search/searchinfilesworker.h \
     include/Search/replaceinfilesworker.h \
     include/Search/searchhelpers.h \
+    include/Search/searchstring.h \
     include/Search/dlgsearching.h \
     include/Search/searchresultsitemdelegate.h \
     include/Extensions/extension.h \
@@ -134,7 +153,12 @@ HEADERS  += include/mainwindow.h \
     include/Extensions/extensionsloader.h \
     include/globals.h \
     include/Extensions/Stubs/menuitemstub.h \
-    include/Extensions/installextension.h
+    include/Extensions/installextension.h \
+    include/keygrabber.h \
+    include/Sessions/sessions.h \
+    include/Sessions/persistentcache.h \
+    include/nqqsettings.h \
+    include/nqqrun.h
 
 FORMS    += mainwindow.ui \
     frmabout.ui \
@@ -149,11 +173,21 @@ FORMS    += mainwindow.ui \
 RESOURCES += \
     resources.qrc
 
+ICON = ../../images/notepadqq.icns
+
 TRANSLATIONS = \
     ../translations/notepadqq_de.ts \
+    ../translations/notepadqq_fr.ts \
     ../translations/notepadqq_hu.ts \
-    ../translations/notepadqq_ru.ts
+    ../translations/notepadqq_it.ts \
+    ../translations/notepadqq_pl.ts \
+    ../translations/notepadqq_ru.ts \
+    ../translations/notepadqq_sl.ts \
+    ../translations/notepadqq_sv.ts
 
+
+# Build translations so that qmake doesn't complain about missing files in resources.qrc
+system($${LRELEASE} \"$${CURRFILE}\")
 
 ### EXTRA TARGETS ###
 
@@ -171,27 +205,26 @@ extensionToolsTarget.commands = (cd \"$$PWD\" && \
                            cd \"../extension_tools\" && \
                            $(MAKE) DESTDIR=\"$$APPDATADIR/extension_tools\")
 
-launchTarget.target = make_launch
-launchTarget.commands = (cd \"$$PWD\" && \
-                         $${QMAKE_MKDIR} \"$$BINDIR/\" && \
-                         $${QMAKE_COPY} \"$$INSTALLFILESDIR/launch/notepadqq\" \"$$BINDIR/\" && \
-                         chmod 755 \"$$BINDIR/notepadqq\")
-
+# Rebuild translations
 translationsTarget.target = make_translations
-translationsTarget.commands = (cd \"$$PWD\" && \
-                         $${QMAKE_MKDIR} \"$$APPDATADIR/translations\" && \
-                         $${LRELEASE} \"../translations/notepadqq_de.ts\" \
-                                  -qm \"$$APPDATADIR/translations/notepadqq_de.qm\" && \
-                         $${LRELEASE} \"../translations/notepadqq_hu.ts\" \
-                                  -qm \"$$APPDATADIR/translations/notepadqq_hu.qm\" && \
-                         $${LRELEASE} \"../translations/notepadqq_ru.ts\" \
-                                  -qm \"$$APPDATADIR/translations/notepadqq_ru.qm\")
+translationsTarget.commands = ($${LRELEASE} \"$${CURRFILE}\")
 
-QMAKE_EXTRA_TARGETS += editorTarget extensionToolsTarget launchTarget translationsTarget
-PRE_TARGETDEPS += make_editor make_extensionTools make_launch make_translations
+QMAKE_EXTRA_TARGETS += editorTarget extensionToolsTarget translationsTarget
+PRE_TARGETDEPS += make_editor make_extensionTools make_translations
+
+unix:!macx {
+    launchTarget.target = make_launch
+    launchTarget.commands = (cd \"$$PWD\" && \
+                             $${QMAKE_MKDIR} \"$$BINDIR/\" && \
+                             $${QMAKE_COPY} \"$$INSTALLFILESDIR/launch/notepadqq\" \"$$BINDIR/\" && \
+                             chmod 755 \"$$BINDIR/notepadqq\")
+
+    QMAKE_EXTRA_TARGETS += launchTarget
+    PRE_TARGETDEPS += make_launch
+}
 
 ### INSTALL ###
-unix {
+unix:!macx {
     isEmpty(PREFIX) {
         PREFIX = /usr/local
     }
@@ -225,12 +258,10 @@ unix {
     # Make sure that the folders exists, otherwise qmake won't create the misc_data install rule
     system($${QMAKE_MKDIR} \"$$APPDATADIR/editor\")
     system($${QMAKE_MKDIR} \"$$APPDATADIR/extension_tools\")
-    system($${QMAKE_MKDIR} \"$$APPDATADIR/translations\")
 
     misc_data.path = "$$INSTALL_ROOT$$PREFIX/share/notepadqq/"
     misc_data.files += "$$APPDATADIR/editor"
     misc_data.files += "$$APPDATADIR/extension_tools"
-    misc_data.files += "$$APPDATADIR/translations"
 
     launch.path = "$$INSTALL_ROOT$$PREFIX/bin/"
     launch.files += "$$BINDIR/notepadqq"

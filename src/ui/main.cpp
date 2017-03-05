@@ -4,11 +4,13 @@
 #include "include/EditorNS/editor.h"
 #include "include/singleapplication.h"
 #include "include/Extensions/extensionsloader.h"
+#include "include/nqqsettings.h"
 #include <QObject>
 #include <QFile>
-#include <QSettings>
 #include <QtGlobal>
 #include <QTranslator>
+#include <QLocale>
+#include <QDateTime>
 
 #ifdef QT_DEBUG
 #include <QElapsedTimer>
@@ -21,7 +23,6 @@ void loadExtensions();
 int main(int argc, char *argv[])
 {
     QTranslator translator;
-
 #ifdef QT_DEBUG
     QElapsedTimer __aet_timer;
     __aet_timer.start();
@@ -43,27 +44,34 @@ int main(int argc, char *argv[])
 
     QSettings::setDefaultFormat(QSettings::IniFormat);
 
+
+    NqqSettings::ensureBackwardsCompatibility();
+    NqqSettings& settings = NqqSettings::getInstance();
+    settings.General.setNotepadqqVersion(POINTVERSION);
+
     forceDefaultSettings();
 
-    QSettings settings;
+    // Initialize from system locale on first run, if no system locale is
+    // set, our default will be used instead.
+    if (settings.General.getLocalization().isEmpty()) {
+        QLocale locale;
+        // ISO 639 dictates language code will always be 2 letters
+        if (locale.name().size() >= 2) {
+            settings.General.setLocalization(locale.name().left(2));
+        } else {
+            settings.General.setLocalization("en");
+        }
+    }
 
-    QString langCode = settings.value("Localization", "en").toString();
-
+    QString langCode = settings.General.getLocalization();
     if (translator.load(QLocale(langCode),
                         QString("%1").arg(qApp->applicationName().toLower()),
                         QString("_"),
-                        QString("%1/../appdata/translations")
-                        .arg(qApp->applicationDirPath()))) {
+                        QString(":/translations"))) {
         a.installTranslator(&translator);
-    } else if (translator.load(QLocale(langCode),
-                               QString("%1").arg(qApp->applicationName().toLower()),
-                               QString("_"),
-                               QString("%1/../../share/%2/translations")
-                               .arg(qApp->applicationDirPath())
-                               .arg(qApp->applicationName().toLower()))) {
-        a.installTranslator(&translator);
+    } else {
+        settings.General.setLocalization("en");
     }
-
     // Check for "run-and-exit" options like -h or -v
     Notepadqq::getCommandLineArgumentsParser(QApplication::arguments());
 
@@ -85,9 +93,10 @@ int main(int argc, char *argv[])
                 win->openCommandLineProvidedUrls(workingDirectory, arguments);
 
                 // Activate the window
+                win->hide();
+                win->show();
                 win->setWindowState((win->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
                 win->raise();
-                win->show();
                 win->activateWindow();
             }
         }
@@ -124,7 +133,7 @@ int main(int argc, char *argv[])
     qDebug() << QString("Started in " + QString::number(__aet_elapsed / 1000 / 1000) + "msec").toStdString().c_str();
 #endif
 
-    if (Notepadqq::oldQt() && settings.value("checkQtVersionAtStartup", true).toBool()) {
+    if (Notepadqq::oldQt() && settings.General.getCheckVersionAtStartup()) {
         Notepadqq::showQtVersionWarning(true, w);
     }
 
@@ -144,18 +153,20 @@ void checkQtVersion()
 
 void forceDefaultSettings()
 {
-    QSettings settings;
+    NqqSettings& s = NqqSettings::getInstance();
 
     // Use tabs to indent makefile by default
-    if (!settings.contains("Languages/makefile/useDefaultSettings")) {
-        settings.setValue("Languages/makefile/useDefaultSettings", false);
-        settings.setValue("Languages/makefile/indentWithSpaces", false);
+    if(!s.Languages.hasUseDefaultSettings("makefile")) {
+        s.Languages.setUseDefaultSettings("makefile", false);
+        s.Languages.setIndentWithSpaces("makefile", false);
     }
 
     // Use two spaces to indent ruby by default
-    if (!settings.contains("Languages/ruby/useDefaultSettings")) {
-        settings.setValue("Languages/ruby/useDefaultSettings", false);
-        settings.setValue("Languages/ruby/tabSize", 2);
-        settings.setValue("Languages/ruby/indentWithSpaces", true);
+    if(!s.Languages.hasUseDefaultSettings("ruby")) {
+        s.Languages.setUseDefaultSettings("ruby", false);
+        s.Languages.setTabSize("ruby", 2);
+        s.Languages.setIndentWithSpaces("ruby",true);
     }
+
+
 }

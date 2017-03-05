@@ -22,6 +22,13 @@ public:
     EditorTabWidget *currentTabWidget();
 
     /**
+     * @brief Returns either of the two first tabwidgets that is not currently active.
+     * @param createIfNotExists creates a second tabwidget if there is only one.
+     * @return EditorTabWidget. Returns nullptr if no inactive tab was found.
+     */
+    EditorTabWidget *inactiveTabWidget(bool createIfNotExists);
+
+    /**
      * @brief Returns the EditorTabWidget that contains a particular Editor
      * @param editor
      * @return EditorTabWidget. Returns 0 if not found.
@@ -38,6 +45,7 @@ public:
      */
     void forEachEditor(bool backwardIndexes, std::function<bool (const int, const int, EditorTabWidget *, Editor *)> callback);
     void forEachEditor(std::function<bool (const int, const int, EditorTabWidget *, Editor *)> callback);
+
 private:
     EditorTabWidget *m_currentTabWidget;
 

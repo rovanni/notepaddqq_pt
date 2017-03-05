@@ -3,12 +3,13 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QTextCodec>
+#include <QTextStream>
 #include <QCoreApplication>
 #include "include/mainwindow.h"
+#include "include/nqqsettings.h"
 
-DocEngine::DocEngine(QSettings *settings, TopEditorContainer *topEditorContainer, QObject *parent) :
+DocEngine::DocEngine(TopEditorContainer *topEditorContainer, QObject *parent) :
     QObject(parent),
-    m_settings(settings),
     m_topEditorContainer(topEditorContainer),
     m_fsWatcher(new QFileSystemWatcher(this))
 {
@@ -25,6 +26,12 @@ int DocEngine::addNewDocument(QString name, bool setFocus, EditorTabWidget *tabW
     int tab = tabWidget->addEditorTab(setFocus, name);
     tabWidget->editor(tab)->setLanguage("plaintext");
     return tab;
+}
+
+QString DocEngine::getNewDocumentName() const
+{
+    static int num = 1; // FIXME maybe find a smarter way
+    return tr("new %1").arg(num++);
 }
 
 DocEngine::DecodedText DocEngine::readToString(QFile *file)
@@ -96,6 +103,13 @@ bool DocEngine::loadDocument(const QUrl &fileName, EditorTabWidget *tabWidget)
     return loadDocuments(files, tabWidget);
 }
 
+bool DocEngine::loadDocumentSilent(const QUrl& fileName, EditorTabWidget* tabWidget)
+{
+    QList<QUrl> files;
+    files.append(fileName);
+    return loadDocuments(files, tabWidget, false, nullptr, false, false);
+}
+
 bool DocEngine::reloadDocument(EditorTabWidget *tabWidget, int tab)
 {
     return reloadDocument(tabWidget, tab, nullptr, false);
@@ -109,10 +123,12 @@ bool DocEngine::reloadDocument(EditorTabWidget *tabWidget, int tab, QTextCodec *
     return loadDocuments(files, tabWidget, true, codec, bom);
 }
 
-bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload, QTextCodec *codec, bool bom)
+bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload, QTextCodec *codec, bool bom,  bool rememberLastSelectedDir)
 {
     if(!fileNames.empty()) {
-        m_settings->setValue("lastSelectedDir", QFileInfo(fileNames[0].toLocalFile()).absolutePath());
+        if(rememberLastSelectedDir){
+            NqqSettings::getInstance().General.setLastSelectedDir(QFileInfo(fileNames[0].toLocalFile()).absolutePath());
+        }
 
         // Used to know if the document that we're loading is
         // the first one in the list.
@@ -135,7 +151,7 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
                             tabW->setCurrentIndex(openPos.second);
                         }
 
-                        emit documentLoaded(tabW, openPos.second, true);
+                        emit documentLoaded(tabW, openPos.second, true, rememberLastSelectedDir);
                         continue;
                     }
                 }
@@ -229,7 +245,7 @@ bool DocEngine::loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tab
                 if (reload) {
                     emit documentReloaded(tabWidget, tabIndex);
                 } else {
-                    emit documentLoaded(tabWidget, tabIndex, false);
+                    emit documentLoaded(tabWidget, tabIndex, false, rememberLastSelectedDir);
                 }
 
             } else if (fileNames[i].isEmpty()) {
@@ -402,7 +418,7 @@ int DocEngine::saveDocument(EditorTabWidget *tabWidget, int tab, QUrl outFileNam
                 int ret = msgBox.exec();
                 if(ret == QMessageBox::Abort) {
                     monitorDocument(editor);
-                    return MainWindow::saveFileResult_Canceled;
+                    return DocEngine::saveFileResult_Canceled;
                 } else if(ret == QMessageBox::Retry) {
                     continue;
                 }
@@ -428,7 +444,7 @@ int DocEngine::saveDocument(EditorTabWidget *tabWidget, int tab, QUrl outFileNam
             emit documentSaved(tabWidget, tab);
         }
 
-        return MainWindow::saveFileResult_Saved;
+        return DocEngine::saveFileResult_Saved;
 
     } else {
         // FIXME ERROR
@@ -437,7 +453,7 @@ int DocEngine::saveDocument(EditorTabWidget *tabWidget, int tab, QUrl outFileNam
         msgBox.setText(tr("Protocol not supported for file \"%1\".").arg(outFileName.toDisplayString()));
         msgBox.exec();
 
-        return MainWindow::saveFileResult_Canceled;
+        return DocEngine::saveFileResult_Canceled;
     }
 }
 

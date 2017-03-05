@@ -186,12 +186,19 @@ UiDriver.registerEventHandler("C_CMD_SET_LINE_WRAP", function(msg, data, prevRet
     editor.setOption("lineWrapping", data == true);
 });
 
+UiDriver.registerEventHandler("C_CMD_SHOW_END_OF_LINE", function(msg, data, prevReturn) {
+    editor.setOption("showEOL", !!data);
+    editor.refresh();
+});
+
+UiDriver.registerEventHandler("C_CMD_SHOW_WHITESPACE", function(msg, data, prevReturn) {
+    editor.setOption("showWhitespace", !!data);
+    editor.refresh();
+});
+
 UiDriver.registerEventHandler("C_CMD_SET_TABS_VISIBLE", function(msg, data, prevReturn) {
-    if (data) {
-        $(".editor").addClass("show-tabs");
-    } else {
-        $(".editor").removeClass("show-tabs");
-    }
+    editor.setOption("showTab", !!data);
+    editor.refresh();
 });
 
 /* Search with a specified regex. Automatically select the text when found.
@@ -251,6 +258,48 @@ UiDriver.registerEventHandler("C_FUN_SEARCH", function(msg, data, prevReturn) {
     return Search(data[0], data[1], data[2]);
 });
 
+/*
+   Determine whether the proposed replacement contains
+   group reuse tokens i.e. \1, \2, etc.
+   (Helper function for search/replace & replace all.)
+ */
+function hasGroupReuseTokens(replacement){
+    var groupReuseRegex = /\\([1-9])/g;
+    return (groupReuseRegex.exec(replacement) !== null);
+}
+/*
+   Substitute group reuse tokens (i.e. \1, \2, etc.) with 
+   the matched groups provided.
+   (Helper function for search/replace & replace all.)
+   groups: contains array of regexp matches, where the first 
+   entry is the whole match and the rest are groups.
+   
+*/
+function applyReusedGroups(replacement, groups){
+    //If we got match subgroups, see if we need to alter the replacement
+    for (var iReuseGroup = 1; iReuseGroup < groups.length; iReuseGroup ++){
+        //takes care of non-consecutive group reuse tokens,
+        //i.e. in "\1 \3" with no "\2", the "\3" is ignored 
+        groupToReuse = groups[iReuseGroup];
+        replacement = replacement.replace(new RegExp("\\\\"+iReuseGroup), groupToReuse);
+    }
+    var groupReuseRegex = /\\([1-9])/g;
+    //take care of all non-matched group reuse tokens (replace with empty string)
+    //this is the Notepad++ functionality
+    replacement = replacement.replace(groupReuseRegex,"");
+    return replacement;
+}
+
+/*
+   Must match the definition of enum class SearchMode
+   in src/ui/include/Search/searchhelpers.h
+*/
+SearchMode = {
+    PlainText:1,
+    SpecialChars:2,
+    Regex:3
+}
+
 /* Replace the currently selected text, then search with a specified regex (calls C_FUN_SEARCH)
 
    The return value indicates whether a match was found.
@@ -263,30 +312,48 @@ UiDriver.registerEventHandler("C_FUN_SEARCH", function(msg, data, prevReturn) {
    data[3]: string to use as replacement
 */
 UiDriver.registerEventHandler("C_FUN_REPLACE", function(msg, data, prevReturn) {
+    var regexStr = data[0];
+    var regexModifiers = data[1];
+    var forward = data[2];
+    var searchMode = Number(data[4]);
     if (editor.somethingSelected()) {
+        var replacement = data[3];
         // Replace
-        editor.replaceSelection(data[3]);
+        if (searchMode == SearchMode.Regex && hasGroupReuseTokens(replacement)) {
+            var searchRegex = new RegExp(regexStr, regexModifiers);
+            groups = searchRegex.exec(editor.getSelection())
+            if (groups !== null) { //groups === null should never occur!
+                editor.replaceSelection(applyReusedGroups(replacement,groups));
+            }
+        } else {
+            editor.replaceSelection(replacement);
+        }
     }
 
     // Find next/prev
-    return Search(data[0], data[1], data[2]);
+    return Search(regexStr, regexModifiers, forward);
 });
 
 UiDriver.registerEventHandler("C_FUN_REPLACE_ALL", function(msg, data, prevReturn) {
     var regexStr = data[0];
     var regexModifiers = data[1];
     var replacement = data[2];
-
+    var searchMode = Number(data[3]);
     var searchCursor = editor.getSearchCursor(new RegExp(regexStr, regexModifiers), undefined, false);
 
     var count = 0;
     var id = Math.round(Math.random() * 1000000) + "/" + Date.now();
+    
+    var hasReuseTokens = hasGroupReuseTokens(replacement) && searchMode == SearchMode.Regex;
 
-    while (searchCursor.findNext()) {
+    while (groups = searchCursor.findNext()) {
         count++;
-
         // Replace
-        searchCursor.replace(replacement, "*C_FUN_REPLACE_ALL" + id);
+        if (hasReuseTokens){
+            searchCursor.replace(applyReusedGroups(replacement, groups), "*C_FUN_REPLACE_ALL" + id);
+        } else {
+            searchCursor.replace(replacement, "*C_FUN_REPLACE_ALL" + id);
+        }        
     }
 
     return count;
@@ -316,6 +383,7 @@ UiDriver.registerEventHandler("C_FUN_GET_LANGUAGES", function(msg, data, prevRet
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_THEME", function(msg, data, prevReturn) {
+    var link = undefined;
     if (data.path != "") {
         var stylesheet = $("link[href='" + data.path + "']");
         if (stylesheet.length > 0) {
@@ -323,19 +391,51 @@ UiDriver.registerEventHandler("C_CMD_SET_THEME", function(msg, data, prevReturn)
             stylesheet.appendTo('head');
         } else {
             // Add the stylesheet
-            addStylesheet(data.path);
+            link = addStylesheet(data.path);
         }
     }
 
-    editor.setOption("theme", data.name);
+    if (link === undefined) {
+        editor.setOption("theme", data.name);
+    } else {
+        link.onload = function () {
+            editor.setOption("theme", data.name);
+        }
+    }
+});
+
+UiDriver.registerEventHandler("C_CMD_SET_FONT", function (msg, data, prevReturn) {
+    var fontSize = (data.size != "" && data.size > 0) ? ("font-size:" + (+data.size) + "px;") : "";
+    var fontFamily = data.family ? ("font-family:'" + ('' + data.family).replace("'", "\\'") + "';") : "";
+    var lineHeight = (data.lineHeight != "" && data.lineHeight > 0) ? ("line-height:" + (+data.lineHeight) + "em;") : "";
+    
+    var styleTag = document.getElementById('userFont');
+
+    if (styleTag) {
+        styleTag.innerHTML = "div.editor > .CodeMirror { " + fontFamily + fontSize + lineHeight + " }";
+    } else {
+        styleTag = document.createElement("style");
+        styleTag.id = 'userFont';
+        styleTag.innerHTML = "div.editor > .CodeMirror { " + fontFamily + fontSize + lineHeight + " }";
+        document.getElementsByTagName("head")[0].appendChild(styleTag);
+    }
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_OVERWRITE", function(msg, data, prevReturn) {
     editor.toggleOverwrite(data);
 });
 
+UiDriver.registerEventHandler("C_CMD_SET_SMART_INDENT", function(msg, data, prevReturn) {
+    editor.options.smartIndent = data;
+    return data;
+});
+
 UiDriver.registerEventHandler("C_CMD_SET_FOCUS", function(msg, data, prevReturn) {
     editor.focus();
+});
+
+UiDriver.registerEventHandler("C_CMD_BLUR", function(msg, data, prevReturn) {
+    document.activeElement.blur();
 });
 
 UiDriver.registerEventHandler("C_FUN_DETECT_INDENTATION_MODE", function(msg, data, prevReturn) {
@@ -451,26 +551,93 @@ UiDriver.registerEventHandler("C_CMD_TRIM_LEADING_SPACE", function(msg, data, pr
     editLines(function (x) { return x.replace(/^\s+/, ""); });
 });
 
+var tabToSpaceCounter = 0;
+function tabToSpaceHelper(match, offset, tabSize) {
+    /*
+        string.replace() does not update the string inbetween invokations of this update function.
+        Since we replace a single tab with multiple spaces we've got to keep track of the extra
+        string length outselves. tabToSpaceCounter holds the number of extra spaces we've added.
+     */
+    var trueOffset = offset + tabToSpaceCounter
+    
+    var numSpaces = tabSize - (trueOffset % tabSize)
+    
+    // Since the original tab is replaced by a space we only need numSpaces-1 new spaces
+    tabToSpaceCounter += numSpaces-1;
+
+    // Generate the whitespace. Sadly " ".repeat(numSpaces) does not work with this js interpreter.
+    var space = "";
+    for (var i = 0; i< numSpaces; i++)
+        space += " ";
+
+    return space;
+}
+
 UiDriver.registerEventHandler("C_CMD_TAB_TO_SPACE", function(msg, data, prevReturn) {
     editLines(function (x) {
-        return x.replace(/\t/g, (function(tabSize) {
-            var result = "";
-            for (var i = 0; i< tabSize; i++) {
-                result += " ";
-            }
-            return result;
-        })(
-            editor.getOption("tabSize")
-        ));
+        tabToSpaceCounter = 0
+        var tabSz = editor.getOption("tabSize")
+
+        return x.replace(/\t/g, function(match, offset) {
+            return tabToSpaceHelper(match, offset, tabSz)
+        });
+
     });
 });
 
+var spaceToTabCounter = 0;
+function spaceToTabHelper(match, offset, tabSize) {  
+    // Like with tabToSpace, we need to keep track of the inserted/deleted character count.
+    var start = offset + spaceToTabCounter
+    var len = match.length
+    var result = ""
+
+    // Search for the first tab line manually
+    var leading = tabSize - (start % tabSize)
+    if (len >= leading) {
+        result += "\t"
+        len -= leading
+    }
+    
+    // then replace spaces with tabs
+    while(len>=tabSize) {
+        result += "\t"
+        len -= tabSize
+    }
+    
+    // finally add spaces if we can't add tabs anymore
+    while(len>0) {
+        result += " "
+        len -= 1
+    }
+    
+    spaceToTabCounter -= (match.length - result.length)
+    
+    return result
+}
+
 UiDriver.registerEventHandler("C_CMD_SPACE_TO_TAB_ALL", function(msg, data, prevReturn) {
-    editLines(function (x) { return x.replace(/ /g, "\t"); });
+    editLines(function (x) {
+        spaceToTabCounter = 0
+        var tabSz = editor.getOption("tabSize")
+
+        return x.replace(/ +/g, function(match, offset) {
+            return spaceToTabHelper(match, offset, tabSz)
+        });
+
+    });
 });
 
 UiDriver.registerEventHandler("C_CMD_SPACE_TO_TAB_LEADING", function(msg, data, prevReturn) {
-    editLines(function (x) { return x.replace(/^\s+/g, function(m){ return m.replace(/\s/g, "\t");}); });
+    editLines(function (x) {
+        spaceToTabCounter = 0
+        var tabSz = editor.getOption("tabSize")
+
+        return x.replace(/^ +/g, function(match, offset) {
+            return spaceToTabHelper(match, offset, tabSz)
+        });
+
+    });
 });
 
 function editLines(funct){

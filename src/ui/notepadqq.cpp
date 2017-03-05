@@ -19,8 +19,13 @@ QString Notepadqq::copyright()
 
 QString Notepadqq::appDataPath(QString fileName)
 {
+#ifdef Q_OS_MACX
+    QString def = QString("%1/../Resources/").
+            arg(qApp->applicationDirPath());
+#else
     QString def = QString("%1/../appdata/").
             arg(qApp->applicationDirPath());
+#endif
 
     if(!QDir(def).exists())
         def = QString("%1/../../share/%2/").
@@ -151,9 +156,7 @@ QList<QString> Notepadqq::translations()
 {
     QList<QString> out;
 
-    QString translationsPath = appDataPath();
-    translationsPath.append("/translations");
-    QDir dir(translationsPath);
+    QDir dir(":/translations");
     QStringList fileNames = dir.entryList(QStringList("notepadqq_*.qm"));
 
     // FIXME this can be removed if we create a .qm file for English too, which should exist for consistency purposes

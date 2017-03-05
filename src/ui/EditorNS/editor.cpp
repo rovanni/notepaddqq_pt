@@ -1,10 +1,10 @@
 #include "include/EditorNS/editor.h"
 #include "include/notepadqq.h"
+#include "include/nqqsettings.h"
 #include <QVBoxLayout>
 #include <QMessageBox>
 #include <QDir>
 #include <QEventLoop>
-#include <QSettings>
 #include <QUrlQuery>
 #include <QRegularExpression>
 #include <QJsonDocument>
@@ -26,9 +26,8 @@ namespace EditorNS
     Editor::Editor(QWidget *parent) :
         QWidget(parent)
     {
-        QSettings s;
 
-        QString themeName = s.value("Appearance/ColorScheme", "default").toString();
+        QString themeName = NqqSettings::getInstance().Appearance.getColorScheme();
         if (themeName == "")
             themeName = "default";
 
@@ -187,6 +186,12 @@ namespace EditorNS
         sendMessage("C_CMD_SET_FOCUS");
     }
 
+    void Editor::clearFocus()
+    {
+        m_webView->clearFocus();
+        sendMessage("C_CMD_BLUR");
+    }
+
     /**
      * Automatically converts local relative file names to absolute ones.
      */
@@ -277,16 +282,15 @@ namespace EditorNS
         return setLanguageFromFileName(fileName().toString());
     }
 
-    void Editor::setIndentationMode(const QString &language)
+    void Editor::setIndentationMode(QString language)
     {
-        QSettings s;
-        QString keyPrefix = "Languages/" + language + "/";
+        NqqSettings& s = NqqSettings::getInstance();
 
-        if (s.value(keyPrefix + "useDefaultSettings", true).toBool())
-            keyPrefix = "Languages/";
+        if (s.Languages.getUseDefaultSettings(language))
+            language = "default";
 
-        setIndentationMode(!s.value(keyPrefix + "indentWithSpaces", false).toBool(),
-                           s.value(keyPrefix + "tabSize", 4).toInt());
+        setIndentationMode(!s.Languages.getIndentWithSpaces(language),
+                            s.Languages.getTabSize(language));
     }
 
     void Editor::setIndentationMode(const bool useTabs, const int size)
@@ -327,6 +331,11 @@ namespace EditorNS
     bool Editor::isUsingCustomIndentationMode() const
     {
         return m_customIndentationMode;
+    }
+
+    void Editor::setSmartIndent(bool enabled)
+    {
+        sendMessage("C_CMD_SET_SMART_INDENT", enabled);
     }
 
     void Editor::setValue(const QString &value)
@@ -466,6 +475,16 @@ namespace EditorNS
         sendMessage("C_CMD_SET_LINE_WRAP", wrap);
     }
 
+    void Editor::setEOLVisible(const bool showeol)
+    {
+        sendMessage("C_CMD_SHOW_END_OF_LINE",showeol);
+    }
+
+    void Editor::setWhitespaceVisible(const bool showspace)
+    {
+        sendMessage("C_CMD_SHOW_WHITESPACE",showspace);
+    }
+
     QPair<int, int> Editor::cursorPosition()
     {
         QList<QVariant> cursor = sendMessageWithResult("C_FUN_GET_CURSOR").toList();
@@ -519,6 +538,15 @@ namespace EditorNS
     void Editor::setEndOfLineSequence(const QString &newLineSequence)
     {
         m_endOfLineSequence = newLineSequence;
+    }
+
+    void Editor::setFont(QString fontFamily, int fontSize, double lineHeight)
+    {
+        QMap<QString, QVariant> tmap;
+        tmap.insert("family", fontFamily == nullptr ? "" : fontFamily);
+        tmap.insert("size", QString::number(fontSize));
+        tmap.insert("lineHeight", QString::number(lineHeight,'f',2));
+        sendMessage("C_CMD_SET_FONT", tmap);
     }
 
     QTextCodec *Editor::codec() const

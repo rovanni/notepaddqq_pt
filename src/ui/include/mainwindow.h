@@ -4,7 +4,6 @@
 #include <QMainWindow>
 #include "include/topeditorcontainer.h"
 #include <QLabel>
-#include <QSettings>
 #include <QCloseEvent>
 #include "docengine.h"
 #include "include/Search/frmsearchreplace.h"
@@ -12,6 +11,7 @@
 #include "QtPrintSupport/QPrinter"
 #include "include/Search/filesearchresultswidget.h"
 #include "include/Extensions/extension.h"
+#include "include/nqqsettings.h"
 
 namespace Ui {
 class MainWindow;
@@ -28,14 +28,6 @@ public:
 
     static QList<MainWindow *> instances();
     static MainWindow * lastActiveInstance();
-
-    /**
-     * Describes the result of a save process. For example, if the user cancels the save dialog, \p saveFileResult_Canceled is returned.
-     */
-    enum saveFileResult {
-         saveFileResult_Saved       /** The file was saved  */
-        ,saveFileResult_Canceled    /** The save process was canceled */
-    };
 
     /**
      * Describes the result of a tab closing process.
@@ -57,12 +49,22 @@ public:
 
     TopEditorContainer *topEditorContainer();
 
+    void removeTabWidgetIfEmpty(EditorTabWidget *tabWidget);
+
     void openCommandLineProvidedUrls(const QString &workingDirectory, const QStringList &arguments);
 
     Editor*   currentEditor();
     QSharedPointer<Editor> currentEditorSharedPtr();
     QAction*  addExtensionMenuItem(QString extensionId, QString text);
     void showExtensionsMenu(bool show);
+
+    QList<QAction*> getActions() const;
+    QList<const QMenu*> getMenus() const ;
+
+    DocEngine*  getDocEngine() const;
+    void generateRunMenu();
+public slots:
+    void refreshEditorUiInfo(Editor *editor);
 
 protected:
     void closeEvent(QCloseEvent *event);
@@ -72,7 +74,8 @@ protected:
     void changeEvent(QEvent *e);
 
 private slots:
-    void refreshEditorUiInfo(Editor *editor);
+    void runCommand();
+    void modifyRunCommands();
     void refreshEditorUiCursorInfo(Editor *editor);
     void on_action_New_triggered();
     void on_customTabContextMenuRequested(QPoint point, EditorTabWidget *tabWidget, int tabIndex);
@@ -119,7 +122,7 @@ private slots:
     void on_bannerRemoved(QWidget *banner);
     void on_documentSaved(EditorTabWidget *tabWidget, int tab);
     void on_documentReloaded(EditorTabWidget *tabWidget, int tab);
-    void on_documentLoaded(EditorTabWidget *tabWidget, int tab, bool wasAlreadyOpened);
+    void on_documentLoaded(EditorTabWidget *tabWidget, int tab, bool wasAlreadyOpened, bool updateRecentDocs);
     void on_actionReload_from_Disk_triggered();
     void on_actionFind_Next_triggered();
     void on_actionFind_Previous_triggered();
@@ -138,7 +141,7 @@ private slots:
     void on_actionInterpret_as_UTF_8_without_BOM_triggered();
     void on_actionInterpret_as_UTF_16BE_UCS_2_Big_Endian_triggered();
     void on_actionInterpret_as_UTF_16LE_UCS_2_Little_Endian_triggered();
-    void on_actionShow_Tabs_toggled(bool on);
+    void on_actionShow_Tabs_triggered(bool on);
     void on_actionConvert_to_triggered();
     void on_actionIndentation_Default_settings_triggered();
     void on_actionIndentation_Custom_triggered();
@@ -146,12 +149,6 @@ private slots:
     void on_actionInterpret_as_triggered();
     void on_actionPrint_triggered();
     void on_actionPrint_Now_triggered();
-    void on_actionLaunch_in_Firefox_triggered();
-    void on_actionLaunch_in_Chromium_triggered();
-    void on_actionLaunch_in_Chrome_triggered();
-    void on_actionGet_php_help_triggered();
-    void on_actionGoogle_Search_triggered();
-    void on_actionWikipedia_Search_triggered();
     void on_actionOpen_a_New_Window_triggered();
     void on_actionOpen_in_New_Window_triggered();
     void on_actionMove_to_New_Window_triggered();
@@ -164,7 +161,7 @@ private slots:
     void on_actionMove_Line_Up_triggered();
     void on_actionMove_Line_Down_triggered();
     void on_fileSearchResultFinished(FileSearchResult::SearchResult result);
-    void on_resultMatchClicked(const FileSearchResult::FileResult &file, const FileSearchResult::Result &match);
+    void on_resultMatchClicked(const QString &fileName, int startLine, int startCol, int endLine, int endCol);
     void on_actionTrim_Trailing_Space_triggered();
     void on_actionTrim_Leading_Space_triggered();
     void on_actionTrim_Leading_and_Trailing_Space_triggered();
@@ -176,9 +173,16 @@ private slots:
     void on_actionGo_to_line_triggered();
     void on_actionInstall_Extension_triggered();
     void on_actionFull_Screen_toggled(bool on);
+    void on_actionShow_End_of_Line_triggered(bool on);
+    void on_actionShow_All_Characters_toggled(bool on);
+    void on_actionShow_Spaces_triggered(bool on);
+    void on_actionToggle_Smart_Indent_toggled(bool on);
+    void on_actionLoad_Session_triggered();
+    void on_actionSave_Session_triggered();
 
 private:
     static QList<MainWindow*> m_instances;
+
     Ui::MainWindow*       ui;
     TopEditorContainer*   m_topEditorContainer;
     DocEngine*            m_docEngine;
@@ -191,14 +195,28 @@ private:
     QLabel*               m_statusBar_EOLstyle;
     QLabel*               m_statusBar_textFormat;
     QLabel*               m_statusBar_overtypeNotify;
-    QSettings*            m_settings;
+    NqqSettings&          m_settings;
     frmSearchReplace*     m_frmSearchReplace = 0;
     bool                  m_overwrite = false; // Overwrite mode vs Insert mode
     FileSearchResultsWidget* m_fileSearchResultsWidget;
     QString               m_workingDirectory;
     QMap<QSharedPointer<Extensions::Extension>, QMenu*> m_extensionMenus;
 
-    void                removeTabWidgetIfEmpty(EditorTabWidget *tabWidget);
+    /**
+     * @brief saveTabsToCache Saves tabs to cache. Utilizes the saveSession function and
+     *        saves all unsaved progress in the cache.
+     */
+    bool                saveTabsToCache();
+
+    /**
+     * @brief Acts like closing all tabs, asking to the user for input before discarding
+     *        changes, etc. However, the tabs will remain opened. This can be used right
+     *        when the MainWindow received a close signal and actually closing all tabs
+     *        is unnecessary.
+     * @return Whether all files would have been properly closed.
+     */
+    bool                finalizeAllTabs();
+
     void                createStatusBar();
     int                 askIfWantToSave(EditorTabWidget *tabWidget, int tab, int reason);
 
@@ -243,7 +261,6 @@ private:
     QStringList         currentWordOrSelections();
     QString             currentWordOrSelection();
     void                currentWordOnlineSearch(const QString &searchUrl);
-    QString             getNewDocumentName();
 
     /**
      * @brief Workaround for this bug: https://bugs.launchpad.net/ubuntu/+source/appmenu-qt5/+bug/1313248
@@ -251,6 +268,19 @@ private:
     void                fixKeyboardShortcuts();
     void                instantiateFrmSearchReplace();
     QUrl                stringToUrl(QString fileName, QString workingDirectory = QString());
+
+    /**
+     * @brief Initialize UI from settings
+     */
+    void initUI();
+
+    /**
+     * @brief Update symbol options using parameter `on` and Show_All_Characters toggle status.
+     * @param on  `true` or `false` based on the calling element's toggle status.
+     * @return bool: `true` if `on` is `false` and Show_All_Characters is checked. False otherwise.
+     *               On a `true` return, default symbol saving behavior is modified.
+     */
+    bool updateSymbols(bool on);
 };
 
 #endif // MAINWINDOW_H
